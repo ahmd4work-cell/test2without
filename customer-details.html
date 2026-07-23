@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASGate - تفاصيل العميل</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="customer-details.css" />
+</head>
+<body>
+  <div class="page">
+    <!-- الشريط الجانبي -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">AS</div>
+        <div class="brand-text">
+          <h1>ASGate</h1>
+          <span>إدارة العملاء</span>
+        </div>
+      </div>
+      <button class="back-btn" onclick="goBackAndFocus()">← العودة للقائمة</button>
+    </aside>
+
+    <!-- المحتوى الرئيسي -->
+    <main class="content">
+      <header class="topbar">
+        <div class="client-title-area">
+          <h2 id="c-name">جاري التحميل...</h2>
+          <p>نظرة شاملة لبيانات ومتابعات العميل</p>
+        </div>
+        <div class="topbar-actions">
+           <button class="btn btn-primary" onclick="openNoteModal()">+ إضافة نشاط / ملاحظة</button>
+        </div>
+      </header>
+
+      <!-- بطاقات البيانات العلوية -->
+      <section class="compact-client-info">
+        <div class="info-card"><span>السجل التجاري 1</span><strong id="c-cr1">-</strong></div>
+        <div class="info-card"><span>السجل التجاري 2</span><strong id="c-cr2">-</strong></div>
+        <div class="info-card"><span>المدينة</span><strong id="c-city">-</strong></div>
+        <div class="info-card"><span>الحي</span><strong id="c-district">-</strong></div>
+        <div class="info-card"><span>المصدر</span><strong id="c-source">-</strong></div>
+        <div class="info-card"><span>المالك</span><strong id="c-owner">-</strong></div>
+      </section>
+
+      <!-- مساحة العمل والتبويبات -->
+      <div class="workspace">
+        <nav class="compact-tabs">
+          <button class="tab-btn active" id="btn-o" onclick="openTab('o-history')">الطلبات</button>
+          <button class="tab-btn" id="btn-v" onclick="openTab('v-history')">الزيارات</button>
+          <button class="tab-btn" id="btn-a" onclick="openTab('attachments')">المرفقات</button>
+        </nav>
+
+        <section class="panel tab-content">
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr id="tableHeadRow">
+                  <th>التاريخ</th>
+                  <th>العنوان</th>
+                  <th>الحالة</th>
+                  <th>الملاحظات</th>
+                </tr>
+              </thead>
+              <tbody id="contentBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- جدول فريق المتابعة (تصميم يشبه Excel) -->
+        <section class="panel">
+          <div class="panel-head">
+            <h3>فريق المتابعة والتواصل</h3>
+            <button class="btn btn-outline" onclick="addNewManagerRow()">+ إضافة صف جديد</button>
+          </div>
+          <div class="table-wrap excel-like-wrap">
+            <table class="data-table excel-table">
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>رقم الجوال</th>
+                  <th>البريد الإلكتروني</th>
+                  <th class="text-center">جهة اتصال أساسية</th>
+                  <th>تاريخ الإضافة</th>
+                  <th class="text-center">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="managerTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- نافذة إضافة نشاط / ملاحظة (Modal) -->
+  <div id="noteModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>تسجيل نشاط جديد</h3>
+        <button class="close-modal" onclick="closeNoteModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="activityNote" placeholder="اكتب تفاصيل النشاط أو الملاحظة هنا..." rows="5"></textarea>
+        
+        <div class="attachment-area">
+          <label for="fileUpload" class="attachment-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+            </svg>
+            إرفاق ملف (PDF, Excel)
+          </label>
+          <input type="file" id="fileUpload" hidden accept=".pdf, .xls, .xlsx" />
+          <span id="fileName" class="file-name"></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="saveActivity()">حفظ النشاط</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="customer-details.js"></script>
+</body>
+</html>
