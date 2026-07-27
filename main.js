@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedSupervisor = document.querySelector('.filters-grid .filter-card:nth-child(4) select')?.value || "all";
         const selectedSalesman = document.querySelector('.filters-grid .filter-card:nth-child(5) select')?.value || "all";
 
+        // يتم تطبيق الفرز هنا، وسينعكس ذلك تلقائياً على كل الجداول والرسومات البيانية
         const filterCallback = (item) => {
             const itemYear = item.date ? item.date.split('-')[0] : "";
             const itemMonth = item.date ? item.date.split('-')[1] : "";
@@ -107,11 +108,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let totalSales = 0;
         let totalPending = 0;
-        let successfulVisits = filteredVisits.filter(v => v.status === "ناجحة" || v.status === "نجاح").length;
 
         filteredOpps.forEach(opp => {
             const val = parseFloat(opp.value) || 0;
-            if (opp.status === "محقق" || opp.status === "ناجح") {
+            if (opp.status === "محقق" || opp.status === "ناجح" || opp.status === "مكتمل") {
                 totalSales += val;
             } else if (opp.status === "معلق") {
                 totalPending += val;
@@ -125,8 +125,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const pendingValueEl = document.querySelector('.bg-yellow .value-text');
         if(pendingValueEl) pendingValueEl.innerText = totalPending.toLocaleString('en-US');
 
+        // نمرر البيانات المفلترة للجدول ليحسبها شهرياً بحسب اختيارك
         updateYearlyTable(filteredOpps, filteredVisits, selectedYear);
-        updateChartsLogic(totalSales, totalPending, filteredVisits.length, successfulVisits, filteredOpps);
+        updateChartsLogic(totalSales, totalPending, filteredVisits.length, 0, filteredOpps);
     }
 
     function updateYearlyTable(opps, visits, year) {
@@ -136,16 +137,18 @@ document.addEventListener('DOMContentLoaded', function() {
         monthsNames.forEach((monthName, index) => {
             const monthCode = (index + 1).toString().padStart(2, '0');
             
+            // حساب البيانات لكل شهر بناءً على البيانات المفلترة فقط
             const mOpps = opps.filter(o => o.date && o.date.split('-')[1] === monthCode);
             const mVisits = visits.filter(v => v.date && v.date.split('-')[1] === monthCode);
 
-            let mSales = 0;
+            let mCompleted = 0;
             let mPending = 0;
-            let mSuccessVisits = mVisits.filter(v => v.status === "ناجحة" || v.status === "نجاح").length;
+            let mVisitsCount = mVisits.length;
+            let mOppsCount = mOpps.length;
 
             mOpps.forEach(o => {
                 const val = parseFloat(o.value) || 0;
-                if (o.status === "محقق" || o.status === "ناجح") mSales += val;
+                if (o.status === "محقق" || o.status === "ناجح" || o.status === "مكتمل") mCompleted += val;
                 else if (o.status === "معلق") mPending += val;
             });
 
@@ -153,10 +156,10 @@ document.addEventListener('DOMContentLoaded', function() {
             row.innerHTML = `
                 <td>${monthName}</td>
                 <td>15k</td>
-                <td>${mSales > 0 ? (mSales/1000).toFixed(1) + 'k' : '-'}</td>
+                <td>${mCompleted > 0 ? (mCompleted/1000).toFixed(1) + 'k' : '-'}</td>
                 <td class="thick-border">${mPending > 0 ? (mPending/1000).toFixed(1) + 'k' : '-'}</td>
-                <td style="color:#3b82f6">${mVisits.length > 0 ? mVisits.length : '-'}</td>
-                <td style="color:#22c55e">${mSuccessVisits > 0 ? mSuccessVisits : '-'}</td>
+                <td style="color:#3b82f6">${mVisitsCount > 0 ? mVisitsCount : '-'}</td>
+                <td style="color:#22c55e">${mOppsCount > 0 ? mOppsCount : '-'}</td>
             `;
         });
     }
@@ -196,8 +199,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 data: {
                     labels: Array.from({length: 30}, (_, i) => `موظف مبيعات متميز ${i + 1}`), 
                     datasets: [
-                        { label: 'المحقق', data: Array.from({length: 30}, () => 0), backgroundColor: '#22c55e' },
-                        { label: 'المعلق', data: Array.from({length: 30}, () => 0), backgroundColor: '#facc15' }
+                        { 
+                            label: 'مكتمل', 
+                            data: Array.from({length: 30}, () => 0), 
+                            backgroundColor: '#22c55e',
+                            barPercentage: 0.85, 
+                            categoryPercentage: 0.6 // لعمل مسافة واضحة بين مجموعة أعمدة كل موظف
+                        },
+                        { 
+                            label: 'معلق', 
+                            data: Array.from({length: 30}, () => 0), 
+                            backgroundColor: '#facc15',
+                            barPercentage: 0.85,
+                            categoryPercentage: 0.6 // لعمل مسافة واضحة بين مجموعة أعمدة كل موظف
+                        }
                     ]
                 },
                 options: { 
@@ -271,12 +286,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!name) return;
 
                 if (!staffAggregation[name]) {
-                    staffAggregation[name] = { achieved: 0, pending: 0 };
+                    staffAggregation[name] = { completed: 0, pending: 0 };
                 }
 
                 const value = parseFloat(opp.value) || 0;
-                if (opp.status === "محقق" || opp.status === "ناجح") {
-                    staffAggregation[name].achieved += value;
+                if (opp.status === "محقق" || opp.status === "ناجح" || opp.status === "مكتمل") {
+                    staffAggregation[name].completed += value;
                 } else if (opp.status === "معلق") {
                     staffAggregation[name].pending += value;
                 }
@@ -288,7 +303,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const salesDataset = Array.from({length: 30}, (_, i) => {
                 const name = realStaffNames[i];
-                return name ? staffAggregation[name].achieved : (sales === 0 ? 0 : Math.floor(sales * (Math.random() * 0.15)));
+                return name ? staffAggregation[name].completed : (sales === 0 ? 0 : Math.floor(sales * (Math.random() * 0.15)));
             });
 
             const pendingDataset = Array.from({length: 30}, (_, i) => {
