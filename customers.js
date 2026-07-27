@@ -2,7 +2,6 @@ const STORAGE_KEY = 'asgate_customers_final_v2';
 const LOGS_KEY = 'asgate_customers_logs_v2';
 
 const tableBody = document.getElementById('tableBody');
-// تم تحديث المعرفات لتتطابق مع ملف HTML
 const logsBody = document.getElementById('activityList'); 
 const totalCustomers = document.getElementById('stat-total'); 
 const monthCustomers = document.getElementById('stat-month'); 
@@ -67,6 +66,16 @@ function getDisplayEmail(v) {
   return safe(v.email);
 }
 
+// دالة مساعدة للحصول على التاريخ والوقت بالشكل المطلوب لسجل النشاط
+function getFullDateString() {
+    const d = new Date();
+    const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const dayName = days[d.getDay()];
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return `${dayName} ${dateStr} ${timeStr}`;
+}
+
 function renderCustomers(list) {
   if (!tableBody) return;
   tableBody.innerHTML = '';
@@ -113,13 +122,15 @@ function renderLogs(list) {
     return;
   }
 
+  // تم تعديل الترتيب ليصبح (المستخدم | التاريخ | الإجراء)
   list.slice(0, 20).forEach(log => {
     logsBody.innerHTML += `
       <div class="log-entry">
+        <span class="log-badge-user"><i class="fas fa-user"></i> ${safe(log.user || 'المستخدم')}</span>
+        <span class="log-divider">|</span>
         <span class="log-timestamp"><i class="far fa-clock"></i> ${safe(log.date)}</span>
         <span class="log-divider">|</span>
-        <span class="log-badge-user"><i class="fas fa-user"></i> ${safe(log.client)}</span>
-        <span class="log-action"><strong>${safe(log.action)}:</strong> ${safe(log.notes)}</span>
+        <span class="log-action">${safe(log.action)}</span>
       </div>
     `;
   });
@@ -165,15 +176,21 @@ function debouncedFilterTable() {
   }, 300);
 }
 
-/* =========================================
-   دوال الإضافة (تم إضافتها لحل مشكلة الزر)
-========================================= */
-
 function openAddCustomerModal() {
   document.getElementById('addCustomerModal').style.display = 'flex';
   
-  // توليد كود العميل وتاريخ اليوم تلقائياً
-  const code = 'CUST-' + Math.floor(1000 + Math.random() * 9000);
+  // توليد كود العميل بتسلسل يبدأ من CUST-00001
+  const customers = getCustomers();
+  let nextNum = 1;
+  if (customers.length > 0) {
+      // استخراج الأرقام من الأكواد السابقة لإنشاء التسلسل
+      const codes = customers.map(c => {
+          const match = c.code.match(/\d+/);
+          return match ? parseInt(match[0], 10) : 0;
+      });
+      nextNum = Math.max(...codes) + 1;
+  }
+  const code = 'CUST-' + String(nextNum).padStart(5, '0');
   document.getElementById('addCode').value = code;
   
   const d = new Date();
@@ -220,13 +237,13 @@ function saveNewCustomer() {
   customers.unshift(newCust); // الإضافة في أعلى القائمة
   localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
 
-  // إضافة الحركة في سجل النشاط
+  // إضافة الحركة في سجل النشاط العام مع تضمين اسم الشركة في الإجراء
+  const creator = document.getElementById('addCreator').value || 'المستخدم';
   const logs = getLogs();
   logs.unshift({
-    date: document.getElementById('addDate').value,
-    client: comp,
-    action: 'إضافة عميل',
-    notes: 'تمت إضافة العميل جديد'
+    user: creator,
+    date: getFullDateString(),
+    action: `إنشاء عميل جديد برقم ${newCust.code} ( ${newCust.comp} )`
   });
   localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
 
@@ -237,10 +254,6 @@ function saveNewCustomer() {
 
   Swal.fire('نجاح', 'تم إضافة العميل بنجاح', 'success');
 }
-
-/* =========================================
-   دوال الملاحظات (النافذة المنبثقة للجدول)
-========================================= */
 
 let currentNoteIndex = -1;
 function openNoteModal(index) {
@@ -283,24 +296,12 @@ function saveNote() {
     
     localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
     
-    const logs = getLogs();
-    logs.unshift({
-        date: dateStr,
-        client: customer.comp,
-        action: 'إضافة ملاحظة',
-        notes: text
-    });
-    localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
+    // تم إزالة الكود الخاص بإضافة الملاحظة إلى سجل النشاط العام بناءً على طلبك
 
     closeNote();
     renderCustomers(customers);
-    renderLogs(logs);
     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'تم حفظ الملاحظة', showConfirmButton: false, timer: 1500 });
 }
-
-/* =========================================
-   دوال الإجراءات الجماعية والواجهة
-========================================= */
 
 function toggleDropdown(event, el) {
     event.stopPropagation();
@@ -365,10 +366,6 @@ function toggleLogExpansion() {
     }
 }
 
-/* =========================================
-   دوال التهيئة الأولية
-========================================= */
-
 function loadSavedData() {
   const customers = getCustomers();
   updateStats(customers);
@@ -380,6 +377,5 @@ function loadSavedData() {
   }
 }
 
-// جعلها متاحة للاستدعاء من خلال ملف HTML 
 window.loadSavedData = loadSavedData;
 document.addEventListener('DOMContentLoaded', loadSavedData);
