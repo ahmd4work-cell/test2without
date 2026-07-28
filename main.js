@@ -1,0 +1,402 @@
+document.addEventListener('DOMContentLoaded', function() {
+    let achievedChart, gaugeChart, pendingChart, staffChart;
+
+    const oppCountEl = document.getElementById('oppCount');
+    const visitCountEl = document.getElementById('visitCount');
+    const salesValueEl = document.getElementById('salesValue');
+    const tbody = document.getElementById('monthsBody');
+
+    const monthsNames = ["يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+
+    function getRawData() {
+        try {
+            const visitsData = localStorage.getItem('asgate_visits_final_v31') || localStorage.getItem('asgate_visits_data_v21');
+            const oppsData = localStorage.getItem('asgate_opportunities_final_v31') || localStorage.getItem('asgate_opportunities_v21');
+            
+            const productsDb = JSON.parse(localStorage.getItem('asgate_products_db') || '{}');
+            const salesDb = JSON.parse(localStorage.getItem('asgate_sales_db') || '[]');
+            const salesArray = Array.isArray(salesDb) ? salesDb : Object.values(salesDb);
+
+            let linkedSales = [];
+            
+            salesArray.forEach(order => {
+                const orderProducts = productsDb[order.id] || [];
+                let completedSum = 0;
+                let pendingSum = 0;
+
+                orderProducts.forEach(p => {
+                    const lineTotal = (parseFloat(p.qty) || 0) * (parseFloat(String(p.sub).replace(/[^\d.]/g, '')) || 0);
+                    if (p.status === "مكتمل") completedSum += lineTotal;
+                    if (p.status === "معلق") pendingSum += lineTotal;
+                });
+
+                linkedSales.push({
+                    id: order.id,
+                    date: order.date,
+                    region: order.region || '',
+                    supervisor: order.supervisor || '',
+                    salesman: order.owner || order.salesman || '',
+                    completedSum: completedSum,
+                    pendingSum: pendingSum
+                });
+            });
+            
+            return {
+                visits: visitsData ? JSON.parse(visitsData) : [],
+                opportunities: oppsData ? JSON.parse(oppsData) : [],
+                sales: linkedSales 
+            };
+        } catch (e) {
+            console.error("خطأ في قراءة LocalStorage:", e);
+            return { visits: [], opportunities: [], sales: [] };
+        }
+    }
+
+    function populateFilterOptions() {
+        const data = getRawData();
+        const allData = [...data.sales, ...data.opportunities, ...data.visits];
+        
+        const regions = new Set();
+        const supervisors = new Set();
+        const salesmen = new Set();
+        const years = new Set(["2026"]);
+
+        allData.forEach(item => {
+            if (item.region) regions.add(item.region);
+            if (item.supervisor) supervisors.add(item.supervisor);
+            if (item.salesman || item.owner) salesmen.add(item.salesman || item.owner);
+            
+            let itemDate = item.date || item.visitDate || item.oppDate || item.saleDate;
+            if (itemDate) {
+                let year;
+                if (itemDate.includes('/')) year = itemDate.split('/')[2];
+                else if (itemDate.includes('-')) year = itemDate.split('-')[0];
+                
+                if(year && year.length === 4) years.add(year);
+            }
+        });
+
+        fillSelect(document.querySelector('.filters-grid .filter-card:nth-child(1) select'), years, "2026");
+        fillSelect(document.querySelector('.filters-grid .filter-card:nth-child(2) select'), monthsNames, "الكل", true);
+        fillSelect(document.querySelector('.filters-grid .filter-card:nth-child(3) select'), regions, "الكل");
+        fillSelect(document.querySelector('.filters-grid .filter-card:nth-child(4) select'), supervisors, "الكل");
+        fillSelect(document.querySelector('.filters-grid .filter-card:nth-child(5) select'), salesmen, "الكل");
+    }
+
+    function fillSelect(selectElement, setOrArray, defaultVal, isMonth = false) {
+        if (!selectElement) return;
+        const currentValue = selectElement.value;
+        selectElement.innerHTML = '';
+        
+        const defaultOpt = document.createElement('option');
+        defaultOpt.text = defaultVal;
+        defaultOpt.value = defaultVal === "الكل" ? "all" : defaultVal;
+        selectElement.appendChild(defaultOpt);
+
+        setOrArray.forEach((val, index) => {
+            if(isMonth && val === defaultVal) return;
+            const opt = document.createElement('option');
+            opt.text = val;
+            opt.value = isMonth ? (index + 1).toString().padStart(2, '0') : val; 
+            if(val !== defaultVal) selectElement.appendChild(opt);
+        });
+
+        if (currentValue && selectElement.querySelector(`option[value="${currentValue}"]`)) {
+            selectElement.value = currentValue;
+        }
+    }
+
+    function updateDashboard() {
+        const data = getRawData();
+
+        const selectedYear = document.querySelector('.filters-grid .filter-card:nth-child(1) select')?.value || "2026";
+        const selectedMonth = document.querySelector('.filters-grid .filter-card:nth-child(2) select')?.value || "all";
+        const selectedRegion = document.querySelector('.filters-grid .filter-card:nth-child(3) select')?.value || "all";
+        const selectedSupervisor = document.querySelector('.filters-grid .filter-card:nth-child(4) select')?.value || "all";
+        const selectedSalesman = document.querySelector('.filters-grid .filter-card:nth-child(5) select')?.value || "all";
+
+        const filterCallback = (item) => {
+            let itemYear = "";
+            let itemMonth = "";
+            const itemDate = item.date || item.visitDate || item.oppDate || item.saleDate || "";
+            
+            if (itemDate.includes('/')) {
+                itemYear = itemDate.split('/')[2];
+                itemMonth = itemDate.split('/')[1];
+            } else if (itemDate.includes('-')) {
+                itemYear = itemDate.split('-')[0];
+                itemMonth = itemDate.split('-')[1];
+            }
+
+            if (selectedYear !== "all" && itemYear !== selectedYear) return false;
+            if (selectedMonth !== "all" && itemMonth !== selectedMonth) return false;
+            if (selectedRegion !== "all" && item.region !== selectedRegion) return false;
+            if (selectedSupervisor !== "all" && item.supervisor !== selectedSupervisor) return false;
+            
+            const ownerName = item.salesman || item.owner;
+            if (selectedSalesman !== "all" && ownerName !== selectedSalesman) return false;
+            
+            return true;
+        };
+
+        const filteredSales = data.sales.filter(filterCallback);
+        const filteredOpps = data.opportunities.filter(filterCallback);
+        const filteredVisits = data.visits.filter(filterCallback);
+
+        let totalSales = 0;
+        let totalPending = 0;
+
+        filteredSales.forEach(sale => {
+            totalSales += sale.completedSum;
+            totalPending += sale.pendingSum;
+        });
+
+        if(oppCountEl) oppCountEl.innerText = filteredOpps.length.toLocaleString('en-US'); 
+        if(visitCountEl) visitCountEl.innerText = filteredVisits.length.toLocaleString('en-US'); 
+        if(salesValueEl) salesValueEl.innerText = totalSales.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        
+        const pendingValueEl = document.querySelector('.bg-warning .value-text');
+        if(pendingValueEl) pendingValueEl.innerText = totalPending.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+        updateYearlyTable(filteredSales, filteredOpps, filteredVisits, selectedYear);
+        updateChartsLogic(totalSales, totalPending, filteredVisits.length, filteredOpps.length, filteredSales);
+    }
+
+    function updateYearlyTable(sales, opps, visits, year) {
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        monthsNames.forEach((monthName, index) => {
+            const monthCode = (index + 1).toString().padStart(2, '0');
+            
+            const mSales = sales.filter(s => {
+                const d = s.date || "";
+                const m = d.includes('/') ? d.split('/')[1] : d.split('-')[1];
+                return m === monthCode;
+            });
+            const mOpps = opps.filter(o => {
+                const d = o.date || o.oppDate || o.visitDate || "";
+                const m = d.includes('/') ? d.split('/')[1] : d.split('-')[1];
+                return m === monthCode;
+            });
+            const mVisits = visits.filter(v => {
+                const d = v.date || v.visitDate || v.oppDate || "";
+                const m = d.includes('/') ? d.split('/')[1] : d.split('-')[1];
+                return m === monthCode;
+            });
+
+            let mCompleted = 0;
+            let mPending = 0;
+            let mVisitsCount = mVisits.length;  
+            let mOppsCount = mOpps.length;      
+
+            mSales.forEach(s => {
+                mCompleted += s.completedSum;
+                mPending += s.pendingSum;
+            });
+
+            const row = tbody.insertRow();
+            // إزالة الألوان والخلفيات من الخلايا لتتناسب مع التصميم الموحد
+            row.innerHTML = `
+                <td>${monthName}</td>
+                <td>15k</td>
+                <td>${mCompleted > 0 ? (mCompleted/1000).toFixed(1) + 'k' : '-'}</td>
+                <td class="thick-border">${mPending > 0 ? (mPending/1000).toFixed(1) + 'k' : '-'}</td>
+                <td>${mVisitsCount > 0 ? mVisitsCount : '-'}</td>
+                <td>${mOppsCount > 0 ? mOppsCount : '-'}</td>
+            `;
+        });
+    }
+
+    function initCharts() {
+        const achievedEl = document.getElementById('achievedChart');
+        if (achievedEl) {
+            achievedChart = new Chart(achievedEl, {
+                type: 'doughnut',
+                data: { datasets: [{ data: [0, 100], backgroundColor: ['#10b981', '#f1f5f9'], borderWidth: 0, borderRadius: 10 }] }, // استخدم الأخضر الفاتح للمكتمل
+                options: { cutout: '82%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        const gaugeNeedlePlugin = {
+            id: 'gaugeNeedle',
+            afterDatasetDraw(chart, args, options) {
+                const { ctx, chartArea: { top, bottom, left, right, width, height } } = chart;
+                ctx.save();
+                
+                let percent = options.percent || 0;
+                if(percent > 100) percent = 100;
+                
+                const angle = Math.PI + (Math.PI * (percent / 100));
+                
+                const meta = chart.getDatasetMeta(0);
+                if (!meta.data.length) return;
+                const cx = meta.data[0].x;
+                const cy = meta.data[0].y;
+                
+                const needleLength = width / 2.3;
+                
+                ctx.translate(cx, cy);
+                ctx.rotate(angle);
+                
+                ctx.beginPath();
+                ctx.moveTo(0, -3.5);
+                ctx.lineTo(needleLength, 0);
+                ctx.lineTo(0, 3.5);
+                ctx.fillStyle = '#0a3a22'; 
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(0, 0, 7, 0, Math.PI * 2);
+                ctx.fillStyle = '#10b981'; // تم تغيير النقطة المركزية إلى الأخضر الفاتح بدلاً من الذهبي
+                ctx.fill();
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = '#0a3a22';
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+        };
+
+        const gaugeEl = document.getElementById('gaugeChart');
+        if (gaugeEl) {
+            gaugeChart = new Chart(gaugeEl.getContext('2d'), {
+                type: 'doughnut',
+                plugins: [gaugeNeedlePlugin],
+                data: { 
+                    datasets: [{ 
+                        data: [100], 
+                        backgroundColor: function(context) {
+                            const chart = context.chart;
+                            const {ctx, chartArea} = chart;
+                            if (!chartArea) return null;
+                            const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
+                            gradient.addColorStop(0, '#ef4444'); 
+                            gradient.addColorStop(0.5, '#fbbf24'); 
+                            gradient.addColorStop(1, '#10b981'); // أخضر فاتح بدلاً من العادي ليتماشى مع الثيم
+                            return gradient;
+                        },
+                        borderWidth: 0 
+                    }] 
+                },
+                options: { 
+                    rotation: 270, 
+                    circumference: 180, 
+                    cutout: '80%', 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { enabled: false }, 
+                        gaugeNeedle: { percent: 0 } 
+                    } 
+                }
+            });
+        }
+
+        const pendingEl = document.getElementById('pendingChart');
+        if (pendingEl) {
+            pendingChart = new Chart(pendingEl, {
+                type: 'doughnut',
+                data: { datasets: [{ data: [0, 100], backgroundColor: ['#f59e0b', '#f1f5f9'], borderWidth: 0, borderRadius: 10 }] },
+                options: { cutout: '82%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        const staffEl = document.getElementById('staffChart');
+        if (staffEl) {
+            staffChart = new Chart(staffEl.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: Array.from({length: 30}, (_, i) => `موظف ${i + 1}`), 
+                    datasets: [
+                        { label: 'مكتمل', data: Array.from({length: 30}, () => 0), backgroundColor: '#10b981', barPercentage: 0.85, categoryPercentage: 0.6 },
+                        { label: 'معلق', data: Array.from({length: 30}, () => 0), backgroundColor: '#f59e0b', barPercentage: 0.85, categoryPercentage: 0.6 }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { tooltip: { callbacks: { label: function(context) { let label = context.dataset.label || ''; if (label) label += ': '; if (context.parsed.y !== undefined) { label += Number(context.parsed.y).toLocaleString('en-US') + ' ريال'; } return label; } } } },
+                    scales: { x: { grid: { display: false }, ticks: { font: { family: 'Cairo', size: 10 }, maxRotation: 45, minRotation: 45 } } } 
+                }
+            });
+        }
+    }
+
+    function updateChartsLogic(salesTotal, pendingTotal, totalVisits, successVisits, filteredSales = []) {
+        const grandTotal = salesTotal + pendingTotal || 1; 
+        const salesPercent = Math.round((salesTotal / grandTotal) * 100) || 0;
+        const pendingPercent = Math.round((pendingTotal / grandTotal) * 100) || 0;
+
+        const achievedText = document.querySelector('.chart-container-reduced:has(#achievedChart) .chart-percentage');
+        if(achievedText) achievedText.innerText = `${salesPercent}%`;
+
+        const pendingText = document.querySelector('.chart-container-reduced:has(#pendingChart) .chart-percentage');
+        if(pendingText) pendingText.innerText = `${pendingPercent}%`;
+
+        const targetYearly = 180000;
+        const gaugePercentRaw = (salesTotal / targetYearly) * 100;
+        
+        const gaugeValueText = document.querySelector('.gauge-container-reduced .gauge-value');
+        if(gaugeValueText) gaugeValueText.innerText = `${Math.round(gaugePercentRaw)}%`;
+
+        if (achievedChart) { achievedChart.data.datasets[0].data = [salesPercent, 100 - salesPercent]; achievedChart.update(); }
+        if (pendingChart) { pendingChart.data.datasets[0].data = [pendingPercent, 100 - pendingPercent]; pendingChart.update(); }
+        
+        if (gaugeChart) { 
+            const safePercent = Math.min(gaugePercentRaw, 100); 
+            gaugeChart.options.plugins.gaugeNeedle.percent = safePercent; 
+            gaugeChart.update(); 
+        }
+
+        if (staffChart) {
+            const staffAggregation = {};
+
+            filteredSales.forEach(sale => {
+                const name = (sale.salesman || sale.owner || "").trim();
+                if (!name) return;
+
+                if (!staffAggregation[name]) {
+                    staffAggregation[name] = { completed: 0, pending: 0 };
+                }
+                
+                staffAggregation[name].completed += sale.completedSum;
+                staffAggregation[name].pending += sale.pendingSum;
+            });
+
+            const realStaffNames = Object.keys(staffAggregation);
+            const finalLabels = Array.from({length: 30}, (_, i) => realStaffNames[i] || `موظف ${i + 1}`);
+            
+            const salesDataset = Array.from({length: 30}, (_, i) => {
+                const name = realStaffNames[i];
+                return name ? staffAggregation[name].completed : (salesTotal === 0 ? 0 : Math.floor(salesTotal * (Math.random() * 0.15)));
+            });
+
+            const pendingDataset = Array.from({length: 30}, (_, i) => {
+                const name = realStaffNames[i];
+                return name ? staffAggregation[name].pending : (pendingTotal === 0 ? 0 : Math.floor(pendingTotal * (Math.random() * 0.10)));
+            });
+
+            staffChart.data.labels = finalLabels;
+            staffChart.data.datasets[0].data = salesDataset;
+            staffChart.data.datasets[1].data = pendingDataset;
+            staffChart.update();
+        }
+    }
+
+    initCharts();
+    populateFilterOptions();
+    updateDashboard();
+
+    document.querySelectorAll('.filters-grid select').forEach(select => {
+        select.addEventListener('change', updateDashboard);
+    });
+
+    window.addEventListener('storage', function(e) {
+        if (e.key && e.key.includes('asgate_')) {
+            populateFilterOptions();
+            updateDashboard();
+        }
+    });
+});
