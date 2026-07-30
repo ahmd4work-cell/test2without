@@ -16,14 +16,16 @@ function formatNumberWithOneDecimal(num) {
 function toggleLogExpansion() {
     const section = document.getElementById('activityLogSection');
     const btn = document.getElementById('toggleExpandBtn');
+    const tableWrapper = document.querySelector('.table-wrapper');
+    
     if (section.classList.contains('expanded')) {
         section.classList.remove('expanded');
-        document.body.classList.remove('log-expanded');
         btn.innerHTML = '<i class="fas fa-expand-alt"></i>';
+        tableWrapper.style.height = 'calc(100vh - 274px)';
     } else {
         section.classList.add('expanded');
-        document.body.classList.add('log-expanded');
         btn.innerHTML = '<i class="fas fa-compress-alt"></i>';
+        tableWrapper.style.height = 'calc(100vh - 354px)';
     }
 }
 
@@ -39,17 +41,14 @@ function generateStyledHeaderForNotes() {
     const days = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
     const d = new Date();
     const timeFormatted = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-    return `<span class="log-badge-user"><i class="fas fa-user"></i> أحمد</span>
-            <span class="log-divider">|</span>
-            <span class="log-timestamp"><i class="fas fa-calendar-alt"></i> ${days[d.getDay()]} ${getTodayFormatted()} <i class="fas fa-clock" style="margin-right:3px;"></i> ${timeFormatted}</span>`;
+    return `<span class="activity-header-part" style="display: block; width: fit-content; margin-bottom: 4px;">المستخدم | ${days[d.getDay()]}  ${getTodayFormatted()}  ${timeFormatted} |</span>`;
 }
 
 function generateInlineHeaderHTML() {
+    const days = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
     const d = new Date();
     const timeFormatted = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-    return `<span class="log-badge-user"><i class="fas fa-user"></i> أحمد</span>
-            <span class="log-divider">|</span>
-            <span class="log-timestamp"><i class="fas fa-calendar-alt"></i> ${getTodayFormatted()} <i class="fas fa-clock" style="margin-right:3px;"></i> ${timeFormatted}</span>`;
+    return `<span class="activity-header-part">المستخدم | ${days[d.getDay()]}  ${getTodayFormatted()}  ${timeFormatted} | </span>`;
 }
 
 function addToActivityLog(fieldName, oldVal, newVal, productIdentifier) {
@@ -60,19 +59,19 @@ function addToActivityLog(fieldName, oldVal, newVal, productIdentifier) {
     const headerHTML = generateInlineHeaderHTML();
     
     let actionText = "";
+    const cleanId = (productIdentifier && String(productIdentifier).trim() !== "") ? productIdentifier : "بدون تفاصيل";
+
     if (fieldName === "إضافة منتج جديد") {
-        const cleanId = (productIdentifier && String(productIdentifier).trim() !== "") ? productIdentifier : "بدون رقم";
-        actionText = `إضافة منتج جديد: ${newVal} للمنتج (${cleanId})`;
+        actionText = `إضافة منتج جديد (${newVal}) للمنتج( ${cleanId} )`;
     } else if (fieldName === "زر إجراء") {
-        actionText = `تم تنفيذ إجراء: [${newVal}] على الطلب الحالي`;
+        actionText = `تطبيق إجراء [${newVal}] على الطلب الحالي`;
     } else {
-        const cleanId = (productIdentifier && String(productIdentifier).trim() !== "") ? productIdentifier : "بدون رقم";
         const val1 = (oldVal && String(oldVal).trim() !== "") ? oldVal : "فارغ";
         const val2 = (newVal && String(newVal).trim() !== "") ? newVal : "فارغ";
-        actionText = `تغيير ${fieldName} من [${val1}] إلى [${val2}] للمنتج (${cleanId})`;
+        actionText = `تعديل ${fieldName} من [${val1}] إلى [${val2}] للمنتج( ${cleanId} )`;
     }
     
-    const fullLogHTML = `<div class="log-entry">${headerHTML} <span class="log-divider">|</span> <span class="log-action">${actionText}</span></div>`;
+    const fullLogHTML = `<div class="activity-row-inline">${headerHTML}<span class="activity-text-part">${actionText}</span></div>`;
     
     let logs = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
     logs.unshift(fullLogHTML);
@@ -83,12 +82,12 @@ function addToActivityLog(fieldName, oldVal, newVal, productIdentifier) {
 function triggerActionLog(actionType) {
     if (actionType === 'تعديل البيانات الأساسية للطلب') {
         alert('تعديل البيانات الأساسية للطلب');
-        addToActivityLog('زر إجراء', '', 'تعديل البيانات الأساسية للطلب', '');
+        addToActivityLog('زر إجراء', '', 'تعديل البيانات الأساسية للطلب', 'الطلب العام');
     } else if (actionType === 'تصدير Excel') {
         exportToExcel();
-        addToActivityLog('زر إجراء', '', 'تصدير لملف Excel', '');
+        addToActivityLog('زر إجراء', '', 'تصدير لملف Excel', 'الطلب العام');
     } else if (actionType === 'طباعة') {
-        addToActivityLog('زر إجراء', '', 'طباعة الصفحة', '');
+        addToActivityLog('زر إجراء', '', 'طباعة الصفحة', 'الطلب العام');
         window.print();
     } else if (actionType === 'حذف المختار') {
         deleteSelected();
@@ -98,7 +97,7 @@ function triggerActionLog(actionType) {
 function renderActivityLog() {
     const list = document.getElementById('activityList');
     const logs = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
-    list.innerHTML = logs.join(''); 
+    list.innerHTML = logs.map(log => `<div class="activity-item">${log}</div>`).join('');
 }
 
 function loadOrderDetails() {
@@ -183,7 +182,7 @@ function renderProducts(filtered = null) {
         else if (p.status === "فقدان") sClass = "status-faqd";
 
         const isLocked = ["مكتمل", "معلق"].includes(p.status);
-        const pIden = p.mobile || p.serial || p.name;
+        const pIden = p.name || 'بدون تفاصيل'; 
         const rNote = p.rowNote || '';
 
         let dynamic = (p.type === "جوال" || p.type === "بيانات") ? `
@@ -208,6 +207,9 @@ function renderProducts(filtered = null) {
             <td contenteditable="${!isLocked}" data-old="${rNote}" onfocus="this.setAttribute('data-old', this.innerText)" onblur="if(this.getAttribute('data-old')!=this.innerText){ addToActivityLog('سجل المتابعة', this.getAttribute('data-old'), this.innerText, '${pIden}'); updateField(${p.originalIndex},'rowNote',this.innerText); }">${rNote}</td>
             </tr>`;
     });
+    
+    tbody.innerHTML += `<tr style="height: 100%;"><td colspan="12" style="border: none; background: transparent; pointer-events: none;"></td></tr>`;
+
     calculateTotals();
     updateStatsBox();
 }
@@ -260,7 +262,7 @@ function changeStatus(idx, s) {
     let item = db[currentOrderId][idx];
     const oldS = item.status;
     
-    const pIden = item.mobile || item.serial || item.name;
+    const pIden = item.name || 'بدون تفاصيل';
     addToActivityLog('الحالة', oldS, s, pIden);
     item.status = s; 
     item.updatedAt = Date.now(); 
@@ -281,8 +283,8 @@ function deleteSelected() {
     
     validIdxs.forEach(originalIdx => {
         const item = db[currentOrderId][originalIdx];
-        const pIden = item.mobile || item.serial || item.name;
-        addToActivityLog('زر إجراء', '', `حذف المنتج: ${item.name} (${pIden})`, pIden);
+        const pIden = item.name || 'بدون تفاصيل';
+        addToActivityLog('زر إجراء', '', `حذف المنتج`, pIden);
     });
 
     db[currentOrderId] = db[currentOrderId].filter((_, i) => !validIdxs.includes(i));
@@ -319,13 +321,13 @@ function saveProduct() {
     if(isAuto && ["جوال", "بيانات"].includes(type) && serial !== "") {
         for(let i=0; i<qty; i++){ 
             db[orderKey].push({ id: baseTime + i, type, name, qty:1, sub, serial, status:"جديد", date:new Date().toLocaleDateString('en-GB'), updatedAt: baseTime - i, rowNote: "" });
-            addToActivityLog('إضافة منتج جديد', '', `${name} (باقة: ${type})`, serial);
+            addToActivityLog('إضافة منتج جديد', '', `${type}`, name);
             serial = serial.replace(/(\d+)(?!.*\d)/, n => (BigInt(n)+1n).toString().padStart(n.length, '0')); 
         }
     } else { 
         const newItem = { id: baseTime, type, name, qty, sub, serial:(["جوال", "بيانات"].includes(type)?serial:""), status:"جديد", date:new Date().toLocaleDateString('en-GB'), updatedAt: baseTime, rowNote: "" };
         db[orderKey].push(newItem); 
-        addToActivityLog('إضافة منتج جديد', '', `${name} (باقة: ${type})`, newItem.serial || newItem.name);
+        addToActivityLog('إضافة منتج جديد', '', `${type}`, name);
     }
     localStorage.setItem('asgate_products_db', JSON.stringify(db));
     syncSumsToSales(); renderProducts(); closeModal();
@@ -377,7 +379,7 @@ function renderGlobalNotes(notesText) {
         logDiv.innerHTML = '<div style="color:#94a3b8; text-align:center; padding-top:20px;">لا توجد ملاحظات سابقة لهذا الطلب.</div>';
         return;
     }
-    logDiv.innerHTML = notesText.split('\n--------------------\n').filter(e=>e.trim()!=="").map(e => `<div class="log-entry">${e}</div>`).join('');
+    logDiv.innerHTML = notesText.split('\n--------------------\n').filter(e=>e.trim()!=="").map(e => `<div class="activity-item">${e}</div>`).join('');
     logDiv.scrollTop = logDiv.scrollHeight;
 }
 
@@ -396,7 +398,7 @@ function saveGlobalNote() {
     const newText = document.getElementById('modalTextArea').value.trim();
     if (newText) {
         let oldNotes = localStorage.getItem(GLOBAL_NOTES_KEY) || "";
-        let newEntry = `${generateStyledHeaderForNotes()} <span class="log-divider">|</span> <span class="log-action">${newText}</span>`;
+        let newEntry = `${generateStyledHeaderForNotes()}<span class="activity-text-part">${newText}</span>`;
         let updatedFullNotes = oldNotes === "" ? newEntry : oldNotes + "\n--------------------\n" + newEntry;
         
         localStorage.setItem(GLOBAL_NOTES_KEY, updatedFullNotes);
@@ -417,7 +419,7 @@ function handleFileUpload(event) {
     if (fileName.trim() === "") fileName = file.name;
 
     let oldNotes = localStorage.getItem(GLOBAL_NOTES_KEY) || "";
-    let newEntry = `${generateStyledHeaderForNotes()} <span class="log-divider">|</span> <span class="log-action" style="color:var(--accent-blue);"><i class="fas fa-file-alt"></i> تم إرفاق ملف: ${fileName}</span>`;
+    let newEntry = `${generateStyledHeaderForNotes()}<span class="activity-text-part" style="color:var(--accent-blue);"><i class="fas fa-file-alt"></i> تم إرفاق ملف: ${fileName}</span>`;
     let updatedFullNotes = oldNotes === "" ? newEntry : oldNotes + "\n--------------------\n" + newEntry;
     
     localStorage.setItem(GLOBAL_NOTES_KEY, updatedFullNotes);
