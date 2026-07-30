@@ -1,402 +1,558 @@
-document.addEventListener('DOMContentLoaded', function() {
-    let achievedChart, gaugeChart, pendingChart, staffChart;
+const urlParams = new URLSearchParams(window.location.search);
+let currentOrderId = urlParams.get('id') || urlParams.get('orderId') || urlParams.get('code') || localStorage.getItem('current_order_id');
 
-    const oppCountEl = document.getElementById('oppCount');
-    const visitCountEl = document.getElementById('visitCount');
-    const salesValueEl = document.getElementById('salesValue');
-    const tbody = document.getElementById('monthsBody');
+const statusOptions = ["مكتمل", "معلق", "جديد", "مرتجع", "فقدان"];
+const statusOrder = { "مكتمل": 1, "معلق": 2, "جديد": 3, "مرتجع": 4, "فقدان": 5 };
 
-    const monthsNames = ["يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+const LOGS_KEY = 'asgate_order_logs_' + (currentOrderId || 'unknown');
+const GLOBAL_NOTES_KEY = 'asgate_global_notes_' + (currentOrderId || 'unknown');
 
-    function getRawData() {
-        try {
-            const visitsData = localStorage.getItem('asgate_visits_final_v31') || localStorage.getItem('asgate_visits_data_v21');
-            const oppsData = localStorage.getItem('asgate_opportunities_final_v31') || localStorage.getItem('asgate_opportunities_v21');
-            
-            const productsDb = JSON.parse(localStorage.getItem('asgate_products_db') || '{}');
-            const salesDb = JSON.parse(localStorage.getItem('asgate_sales_db') || '[]');
-            const salesArray = Array.isArray(salesDb) ? salesDb : Object.values(salesDb);
+let currentStatusFilterValue = "all";
 
-            let linkedSales = [];
-            
-            salesArray.forEach(order => {
-                const orderProducts = productsDb[order.id] || [];
-                let completedSum = 0;
-                let pendingSum = 0;
+function formatNumberWithOneDecimal(num) {
+    return Number(num).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
 
-                orderProducts.forEach(p => {
-                    const lineTotal = (parseFloat(p.qty) || 0) * (parseFloat(String(p.sub).replace(/[^\d.]/g, '')) || 0);
-                    if (p.status === "مكتمل") completedSum += lineTotal;
-                    if (p.status === "معلق") pendingSum += lineTotal;
-                });
+function toggleLogExpansion() {
+    const section = document.getElementById('activityLogSection');
+    const btn = document.getElementById('toggleExpandBtn');
+    const tableWrapper = document.querySelector('.table-wrapper');
+    
+    if (section.classList.contains('expanded')) {
+        section.classList.remove('expanded');
+        btn.innerHTML = '<i class="fas fa-expand-alt"></i>';
+        tableWrapper.style.height = 'calc(100vh - 274px)';
+    } else {
+        section.classList.add('expanded');
+        btn.innerHTML = '<i class="fas fa-compress-alt"></i>';
+        tableWrapper.style.height = 'calc(100vh - 354px)';
+    }
+}
 
-                linkedSales.push({
-                    id: order.id,
-                    date: order.date,
-                    region: order.region || '',
-                    supervisor: order.supervisor || '',
-                    salesman: order.owner || order.salesman || '',
-                    completedSum: completedSum,
-                    pendingSum: pendingSum
-                });
-            });
-            
-            return {
-                visits: visitsData ? JSON.parse(visitsData) : [],
-                opportunities: oppsData ? JSON.parse(oppsData) : [],
-                sales: linkedSales 
-            };
-        } catch (e) {
-            console.error("خطأ في قراءة LocalStorage:", e);
-            return { visits: [], opportunities: [], sales: [] };
+function getTodayFormatted() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function generateStyledHeaderForNotes() {
+    const days = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const d = new Date();
+    const timeFormatted = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `<span class="activity-header-part">المستخدم | ${days[d.getDay()]}  ${getTodayFormatted()}  ${timeFormatted} | </span>`;
+}
+
+function generateInlineHeaderHTML() {
+    const days = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const d = new Date();
+    const timeFormatted = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `<span class="activity-header-part">المستخدم | ${days[d.getDay()]}  ${getTodayFormatted()}  ${timeFormatted} | </span>`;
+}
+
+function addToActivityLog(fieldName, oldVal, newVal, productIdentifier) {
+    const allowedFields = ["تفاصيل المنتج", "العدد", "الاشتراك", "رقم السريال", "رقم الخدمة", "هوية المستخدم", "سجل المتابعة", "الحالة", "إضافة منتج جديد", "زر إجراء"];
+    if (!allowedFields.includes(fieldName)) return; 
+
+    if (oldVal === newVal && fieldName !== "إضافة منتج جديد" && fieldName !== "زر إجراء") return;
+    const headerHTML = generateInlineHeaderHTML();
+    
+    let actionText = "";
+    const cleanId = (productIdentifier && String(productIdentifier).trim() !== "") ? productIdentifier : "بدون تفاصيل";
+
+    if (fieldName === "إضافة منتج جديد") {
+        actionText = `إضافة منتج جديد (${newVal}) للمنتج( ${cleanId} )`;
+    } else if (fieldName === "زر إجراء") {
+        actionText = `تطبيق إجراء [${newVal}] على الطلب الحالي`;
+    } else {
+        const val1 = (oldVal && String(oldVal).trim() !== "") ? oldVal : "فارغ";
+        const val2 = (newVal && String(newVal).trim() !== "") ? newVal : "فارغ";
+        actionText = `تعديل ${fieldName} من [${val1}] إلى [${val2}] للمنتج( ${cleanId} )`;
+    }
+    
+    const fullLogHTML = `<div class="activity-row-inline">${headerHTML}<span class="activity-text-part">${actionText}</span></div>`;
+    
+    let logs = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
+    logs.unshift(fullLogHTML);
+    localStorage.setItem(LOGS_KEY, JSON.stringify(logs.slice(0, 100)));
+    renderActivityLog();
+}
+
+function triggerActionLog(actionType) {
+    if (actionType === 'تعديل البيانات الأساسية للطلب') {
+        alert('تعديل البيانات الأساسية للطلب');
+        addToActivityLog('زر إجراء', '', 'تعديل البيانات الأساسية للطلب', 'الطلب العام');
+    } else if (actionType === 'تصدير Excel') {
+        exportToExcel();
+        addToActivityLog('زر إجراء', '', 'تصدير لملف Excel', 'الطلب العام');
+    } else if (actionType === 'طباعة') {
+        addToActivityLog('زر إجراء', '', 'طباعة الصفحة', 'الطلب العام');
+        window.print();
+    } else if (actionType === 'حذف المختار') {
+        deleteSelected();
+    }
+}
+
+function renderActivityLog() {
+    const list = document.getElementById('activityList');
+    const logs = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
+    list.innerHTML = logs.map(log => `<div class="activity-item">${log}</div>`).join('');
+}
+
+function loadOrderDetails() {
+    if (!currentOrderId) currentOrderId = "0000";
+
+    try {
+        let salesData = localStorage.getItem('asgate_sales_db');
+        let sales = [];
+        if (salesData) {
+            let parsed = JSON.parse(salesData);
+            sales = Array.isArray(parsed) ? parsed : Object.values(parsed);
         }
+
+        const order = sales.find(o => String(o.id) === String(currentOrderId) || String(o.orderId) === String(currentOrderId) || String(o.code) === String(currentOrderId));
+        if (order) {
+            document.getElementById('orderId').innerText = '#' + (order.id || order.orderId || order.code || currentOrderId);
+            document.getElementById('orderType').innerText = order.type || order.name || '-';
+            document.getElementById('orderComp').innerText = order.comp || order.company || order.customer || '-';
+            document.getElementById('orderCr').innerText = order.cr || order.commercialRecord || '-';
+            document.getElementById('orderStatus').innerText = order.status || '-';
+        } else {
+            document.getElementById('orderId').innerText = '#' + currentOrderId;
+        }
+    } catch (e) {
+        console.error("خطأ في جلب بيانات المبيعات: ", e);
+        document.getElementById('orderId').innerText = '#' + currentOrderId;
     }
 
-    function populateFilterOptions() {
-        const data = getRawData();
-        const allData = [...data.sales, ...data.opportunities, ...data.visits];
-        
-        const regions = new Set();
-        const supervisors = new Set();
-        const salesmen = new Set();
-        const years = new Set(["2026"]);
+    renderProducts();
+    renderActivityLog();
+}
 
-        allData.forEach(item => {
-            if (item.region) regions.add(item.region);
-            if (item.supervisor) supervisors.add(item.supervisor);
-            if (item.salesman || item.owner) salesmen.add(item.salesman || item.owner);
-            
-            let itemDate = item.date || item.visitDate || item.oppDate || item.saleDate;
-            if (itemDate) {
-                let year;
-                if (itemDate.includes('/')) year = itemDate.split('/')[2];
-                else if (itemDate.includes('-')) year = itemDate.split('-')[0];
-                
-                if(year && year.length === 4) years.add(year);
-            }
-        });
-
-        fillSelect(document.querySelector('.filters-grid .filter-card:nth-child(1) select'), years, "2026");
-        fillSelect(document.querySelector('.filters-grid .filter-card:nth-child(2) select'), monthsNames, "الكل", true);
-        fillSelect(document.querySelector('.filters-grid .filter-card:nth-child(3) select'), regions, "الكل");
-        fillSelect(document.querySelector('.filters-grid .filter-card:nth-child(4) select'), supervisors, "الكل");
-        fillSelect(document.querySelector('.filters-grid .filter-card:nth-child(5) select'), salesmen, "الكل");
+function validateNumberInput(el, isFloat = false) {
+    let originalText = el.innerText;
+    let cleanedText = originalText;
+    if (isFloat) cleanedText = originalText.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+    else cleanedText = originalText.replace(/[^0-9]/g, '');
+    
+    if (originalText !== cleanedText) {
+        el.innerText = cleanedText;
+        let range = document.createRange();
+        let sel = window.getSelection();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
     }
+}
 
-    function fillSelect(selectElement, setOrArray, defaultVal, isMonth = false) {
-        if (!selectElement) return;
-        const currentValue = selectElement.value;
-        selectElement.innerHTML = '';
-        
-        const defaultOpt = document.createElement('option');
-        defaultOpt.text = defaultVal;
-        defaultOpt.value = defaultVal === "الكل" ? "all" : defaultVal;
-        selectElement.appendChild(defaultOpt);
-
-        setOrArray.forEach((val, index) => {
-            if(isMonth && val === defaultVal) return;
-            const opt = document.createElement('option');
-            opt.text = val;
-            opt.value = isMonth ? (index + 1).toString().padStart(2, '0') : val; 
-            if(val !== defaultVal) selectElement.appendChild(opt);
-        });
-
-        if (currentValue && selectElement.querySelector(`option[value="${currentValue}"]`)) {
-            selectElement.value = currentValue;
+function renderProducts(filtered = null) {
+    const db = JSON.parse(localStorage.getItem('asgate_products_db') || '{}');
+    let baseItems = db[currentOrderId] || [];
+    
+    baseItems.forEach(p => { if (!statusOptions.includes(p.status)) p.status = "جديد"; });
+    if (currentStatusFilterValue !== "all") baseItems = baseItems.filter(p => p.status === currentStatusFilterValue);
+    
+    let items = (filtered || baseItems).map((p, i) => ({...p, originalIndex: i}));
+    
+    items.sort((a, b) => {
+        let weightA = statusOrder[a.status] || 99;
+        let weightB = statusOrder[b.status] || 99;
+        if (weightA !== weightB) return weightA - weightB;
+        let sA = a.serial || "";
+        let sB = b.serial || "";
+        if (sA !== sB) {
+            return sA.localeCompare(sB, undefined, {numeric: true, sensitivity: 'base'});
         }
-    }
-
-    function updateDashboard() {
-        const data = getRawData();
-
-        const selectedYear = document.querySelector('.filters-grid .filter-card:nth-child(1) select')?.value || "2026";
-        const selectedMonth = document.querySelector('.filters-grid .filter-card:nth-child(2) select')?.value || "all";
-        const selectedRegion = document.querySelector('.filters-grid .filter-card:nth-child(3) select')?.value || "all";
-        const selectedSupervisor = document.querySelector('.filters-grid .filter-card:nth-child(4) select')?.value || "all";
-        const selectedSalesman = document.querySelector('.filters-grid .filter-card:nth-child(5) select')?.value || "all";
-
-        const filterCallback = (item) => {
-            let itemYear = "";
-            let itemMonth = "";
-            const itemDate = item.date || item.visitDate || item.oppDate || item.saleDate || "";
-            
-            if (itemDate.includes('/')) {
-                itemYear = itemDate.split('/')[2];
-                itemMonth = itemDate.split('/')[1];
-            } else if (itemDate.includes('-')) {
-                itemYear = itemDate.split('-')[0];
-                itemMonth = itemDate.split('-')[1];
-            }
-
-            if (selectedYear !== "all" && itemYear !== selectedYear) return false;
-            if (selectedMonth !== "all" && itemMonth !== selectedMonth) return false;
-            if (selectedRegion !== "all" && item.region !== selectedRegion) return false;
-            if (selectedSupervisor !== "all" && item.supervisor !== selectedSupervisor) return false;
-            
-            const ownerName = item.salesman || item.owner;
-            if (selectedSalesman !== "all" && ownerName !== selectedSalesman) return false;
-            
-            return true;
-        };
-
-        const filteredSales = data.sales.filter(filterCallback);
-        const filteredOpps = data.opportunities.filter(filterCallback);
-        const filteredVisits = data.visits.filter(filterCallback);
-
-        let totalSales = 0;
-        let totalPending = 0;
-
-        filteredSales.forEach(sale => {
-            totalSales += sale.completedSum;
-            totalPending += sale.pendingSum;
-        });
-
-        if(oppCountEl) oppCountEl.innerText = filteredOpps.length.toLocaleString('en-US'); 
-        if(visitCountEl) visitCountEl.innerText = filteredVisits.length.toLocaleString('en-US'); 
-        if(salesValueEl) salesValueEl.innerText = totalSales.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-        
-        const pendingValueEl = document.querySelector('.bg-warning .value-text');
-        if(pendingValueEl) pendingValueEl.innerText = totalPending.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-
-        updateYearlyTable(filteredSales, filteredOpps, filteredVisits, selectedYear);
-        updateChartsLogic(totalSales, totalPending, filteredVisits.length, filteredOpps.length, filteredSales);
-    }
-
-    function updateYearlyTable(sales, opps, visits, year) {
-        if (!tbody) return;
-        tbody.innerHTML = '';
-
-        monthsNames.forEach((monthName, index) => {
-            const monthCode = (index + 1).toString().padStart(2, '0');
-            
-            const mSales = sales.filter(s => {
-                const d = s.date || "";
-                const m = d.includes('/') ? d.split('/')[1] : d.split('-')[1];
-                return m === monthCode;
-            });
-            const mOpps = opps.filter(o => {
-                const d = o.date || o.oppDate || o.visitDate || "";
-                const m = d.includes('/') ? d.split('/')[1] : d.split('-')[1];
-                return m === monthCode;
-            });
-            const mVisits = visits.filter(v => {
-                const d = v.date || v.visitDate || v.oppDate || "";
-                const m = d.includes('/') ? d.split('/')[1] : d.split('-')[1];
-                return m === monthCode;
-            });
-
-            let mCompleted = 0;
-            let mPending = 0;
-            let mVisitsCount = mVisits.length;  
-            let mOppsCount = mOpps.length;      
-
-            mSales.forEach(s => {
-                mCompleted += s.completedSum;
-                mPending += s.pendingSum;
-            });
-
-            const row = tbody.insertRow();
-            // إزالة الألوان والخلفيات من الخلايا لتتناسب مع التصميم الموحد
-            row.innerHTML = `
-                <td>${monthName}</td>
-                <td>15k</td>
-                <td>${mCompleted > 0 ? (mCompleted/1000).toFixed(1) + 'k' : '-'}</td>
-                <td class="thick-border">${mPending > 0 ? (mPending/1000).toFixed(1) + 'k' : '-'}</td>
-                <td>${mVisitsCount > 0 ? mVisitsCount : '-'}</td>
-                <td>${mOppsCount > 0 ? mOppsCount : '-'}</td>
-            `;
-        });
-    }
-
-    function initCharts() {
-        const achievedEl = document.getElementById('achievedChart');
-        if (achievedEl) {
-            achievedChart = new Chart(achievedEl, {
-                type: 'doughnut',
-                data: { datasets: [{ data: [0, 100], backgroundColor: ['#10b981', '#f1f5f9'], borderWidth: 0, borderRadius: 10 }] }, // استخدم الأخضر الفاتح للمكتمل
-                options: { cutout: '82%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-            });
-        }
-
-        const gaugeNeedlePlugin = {
-            id: 'gaugeNeedle',
-            afterDatasetDraw(chart, args, options) {
-                const { ctx, chartArea: { top, bottom, left, right, width, height } } = chart;
-                ctx.save();
-                
-                let percent = options.percent || 0;
-                if(percent > 100) percent = 100;
-                
-                const angle = Math.PI + (Math.PI * (percent / 100));
-                
-                const meta = chart.getDatasetMeta(0);
-                if (!meta.data.length) return;
-                const cx = meta.data[0].x;
-                const cy = meta.data[0].y;
-                
-                const needleLength = width / 2.3;
-                
-                ctx.translate(cx, cy);
-                ctx.rotate(angle);
-                
-                ctx.beginPath();
-                ctx.moveTo(0, -3.5);
-                ctx.lineTo(needleLength, 0);
-                ctx.lineTo(0, 3.5);
-                ctx.fillStyle = '#0a3a22'; 
-                ctx.fill();
-                
-                ctx.beginPath();
-                ctx.arc(0, 0, 7, 0, Math.PI * 2);
-                ctx.fillStyle = '#10b981'; // تم تغيير النقطة المركزية إلى الأخضر الفاتح بدلاً من الذهبي
-                ctx.fill();
-                ctx.lineWidth = 1.5;
-                ctx.strokeStyle = '#0a3a22';
-                ctx.stroke();
-                
-                ctx.restore();
-            }
-        };
-
-        const gaugeEl = document.getElementById('gaugeChart');
-        if (gaugeEl) {
-            gaugeChart = new Chart(gaugeEl.getContext('2d'), {
-                type: 'doughnut',
-                plugins: [gaugeNeedlePlugin],
-                data: { 
-                    datasets: [{ 
-                        data: [100], 
-                        backgroundColor: function(context) {
-                            const chart = context.chart;
-                            const {ctx, chartArea} = chart;
-                            if (!chartArea) return null;
-                            const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
-                            gradient.addColorStop(0, '#ef4444'); 
-                            gradient.addColorStop(0.5, '#fbbf24'); 
-                            gradient.addColorStop(1, '#10b981'); // أخضر فاتح بدلاً من العادي ليتماشى مع الثيم
-                            return gradient;
-                        },
-                        borderWidth: 0 
-                    }] 
-                },
-                options: { 
-                    rotation: 270, 
-                    circumference: 180, 
-                    cutout: '80%', 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { 
-                        legend: { display: false },
-                        tooltip: { enabled: false }, 
-                        gaugeNeedle: { percent: 0 } 
-                    } 
-                }
-            });
-        }
-
-        const pendingEl = document.getElementById('pendingChart');
-        if (pendingEl) {
-            pendingChart = new Chart(pendingEl, {
-                type: 'doughnut',
-                data: { datasets: [{ data: [0, 100], backgroundColor: ['#f59e0b', '#f1f5f9'], borderWidth: 0, borderRadius: 10 }] },
-                options: { cutout: '82%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-            });
-        }
-
-        const staffEl = document.getElementById('staffChart');
-        if (staffEl) {
-            staffChart = new Chart(staffEl.getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: Array.from({length: 30}, (_, i) => `موظف ${i + 1}`), 
-                    datasets: [
-                        { label: 'مكتمل', data: Array.from({length: 30}, () => 0), backgroundColor: '#10b981', barPercentage: 0.85, categoryPercentage: 0.6 },
-                        { label: 'معلق', data: Array.from({length: 30}, () => 0), backgroundColor: '#f59e0b', barPercentage: 0.85, categoryPercentage: 0.6 }
-                    ]
-                },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { tooltip: { callbacks: { label: function(context) { let label = context.dataset.label || ''; if (label) label += ': '; if (context.parsed.y !== undefined) { label += Number(context.parsed.y).toLocaleString('en-US') + ' ريال'; } return label; } } } },
-                    scales: { x: { grid: { display: false }, ticks: { font: { family: 'Cairo', size: 10 }, maxRotation: 45, minRotation: 45 } } } 
-                }
-            });
-        }
-    }
-
-    function updateChartsLogic(salesTotal, pendingTotal, totalVisits, successVisits, filteredSales = []) {
-        const grandTotal = salesTotal + pendingTotal || 1; 
-        const salesPercent = Math.round((salesTotal / grandTotal) * 100) || 0;
-        const pendingPercent = Math.round((pendingTotal / grandTotal) * 100) || 0;
-
-        const achievedText = document.querySelector('.chart-container-reduced:has(#achievedChart) .chart-percentage');
-        if(achievedText) achievedText.innerText = `${salesPercent}%`;
-
-        const pendingText = document.querySelector('.chart-container-reduced:has(#pendingChart) .chart-percentage');
-        if(pendingText) pendingText.innerText = `${pendingPercent}%`;
-
-        const targetYearly = 180000;
-        const gaugePercentRaw = (salesTotal / targetYearly) * 100;
-        
-        const gaugeValueText = document.querySelector('.gauge-container-reduced .gauge-value');
-        if(gaugeValueText) gaugeValueText.innerText = `${Math.round(gaugePercentRaw)}%`;
-
-        if (achievedChart) { achievedChart.data.datasets[0].data = [salesPercent, 100 - salesPercent]; achievedChart.update(); }
-        if (pendingChart) { pendingChart.data.datasets[0].data = [pendingPercent, 100 - pendingPercent]; pendingChart.update(); }
-        
-        if (gaugeChart) { 
-            const safePercent = Math.min(gaugePercentRaw, 100); 
-            gaugeChart.options.plugins.gaugeNeedle.percent = safePercent; 
-            gaugeChart.update(); 
-        }
-
-        if (staffChart) {
-            const staffAggregation = {};
-
-            filteredSales.forEach(sale => {
-                const name = (sale.salesman || sale.owner || "").trim();
-                if (!name) return;
-
-                if (!staffAggregation[name]) {
-                    staffAggregation[name] = { completed: 0, pending: 0 };
-                }
-                
-                staffAggregation[name].completed += sale.completedSum;
-                staffAggregation[name].pending += sale.pendingSum;
-            });
-
-            const realStaffNames = Object.keys(staffAggregation);
-            const finalLabels = Array.from({length: 30}, (_, i) => realStaffNames[i] || `موظف ${i + 1}`);
-            
-            const salesDataset = Array.from({length: 30}, (_, i) => {
-                const name = realStaffNames[i];
-                return name ? staffAggregation[name].completed : (salesTotal === 0 ? 0 : Math.floor(salesTotal * (Math.random() * 0.15)));
-            });
-
-            const pendingDataset = Array.from({length: 30}, (_, i) => {
-                const name = realStaffNames[i];
-                return name ? staffAggregation[name].pending : (pendingTotal === 0 ? 0 : Math.floor(pendingTotal * (Math.random() * 0.10)));
-            });
-
-            staffChart.data.labels = finalLabels;
-            staffChart.data.datasets[0].data = salesDataset;
-            staffChart.data.datasets[1].data = pendingDataset;
-            staffChart.update();
-        }
-    }
-
-    initCharts();
-    populateFilterOptions();
-    updateDashboard();
-
-    document.querySelectorAll('.filters-grid select').forEach(select => {
-        select.addEventListener('change', updateDashboard);
+        return b.id - a.id; 
     });
+    
+    updateTableHeaders(items.length > 0 ? items[0].type : "جوال");
+    const tbody = document.getElementById('productsBody');
+    tbody.innerHTML = '';
+    
+    items.forEach((p) => {
+        const subVal = parseFloat(p.sub) || 0;
+        
+        let sClass = "";
+        if (p.status === "مكتمل") sClass = "status-mektamel";
+        else if (p.status === "معلق") sClass = "status-moallaq";
+        else if (p.status === "مرتجع") sClass = "status-mortaja";
+        else if (p.status === "فقدان") sClass = "status-faqd";
 
-    window.addEventListener('storage', function(e) {
-        if (e.key && e.key.includes('asgate_')) {
-            populateFilterOptions();
-            updateDashboard();
+        const isLocked = ["مكتمل", "معلق"].includes(p.status);
+        const pIden = p.name || 'بدون تفاصيل'; 
+        const rNote = p.rowNote || '';
+
+        let dynamic = (p.type === "جوال" || p.type === "بيانات") ? `
+            <td contenteditable="${!isLocked}" data-old="${p.serial||''}" onfocus="this.setAttribute('data-old', this.innerText)" oninput="validateNumberInput(this, false)" onblur="if(this.getAttribute('data-old')!=this.innerText){ addToActivityLog('رقم السريال', this.getAttribute('data-old'), this.innerText, '${pIden}'); updateField(${p.originalIndex},'serial',this.innerText); }">${p.serial||''}</td>
+            <td contenteditable="${!isLocked}" data-old="${p.mobile||''}" onfocus="this.setAttribute('data-old', this.innerText)" oninput="validateNumberInput(this, false)" onblur="if(this.getAttribute('data-old')!=this.innerText){ addToActivityLog('رقم الخدمة', this.getAttribute('data-old'), this.innerText, '${pIden}'); updateField(${p.originalIndex},'mobile',this.innerText); }">${p.mobile||''}</td>
+            <td contenteditable="${!isLocked}" data-old="${p.user||''}" onfocus="this.setAttribute('data-old', this.innerText)" oninput="validateNumberInput(this, false)" onblur="if(this.getAttribute('data-old')!=this.innerText){ addToActivityLog('هوية المستخدم', this.getAttribute('data-old'), this.innerText, '${pIden}'); updateField(${p.originalIndex},'user',this.innerText); }">${p.user||''}</td>` : `
+            <td contenteditable="${!isLocked}" data-old="${p.sai||''}" onfocus="this.setAttribute('data-old', this.innerText)" onblur="if(this.getAttribute('data-old')!=this.innerText){ updateField(${p.originalIndex},'sai',this.innerText); }">${p.sai||''}</td>
+            <td contenteditable="${!isLocked}" data-old="${p.coords||''}" onfocus="this.setAttribute('data-old', this.innerText)" onblur="if(this.getAttribute('data-old')!=this.innerText){ updateField(${p.originalIndex},'coords',this.innerText); }">${p.coords||''}</td>
+            <td contenteditable="${!isLocked}" data-old="${p.city||''}" onfocus="this.setAttribute('data-old', this.innerText)" onblur="if(this.getAttribute('data-old')!=this.innerText){ updateField(${p.originalIndex},'city',this.innerText); }">${p.city||''}</td>`;
+
+        tbody.innerHTML += `<tr class="${isLocked ? 'row-locked' : ''}">
+            <td class="not-locked"><input type="checkbox" class="row-checkbox" data-index="${p.originalIndex}" data-locked="${isLocked}" onchange=\"calculateTotals()\"></td>
+            <td>${p.type}</td>
+            <td contenteditable="${!isLocked}" data-old="${p.name}" onfocus="this.setAttribute('data-old', this.innerText)" onblur="if(this.getAttribute('data-old')!=this.innerText){ addToActivityLog('تفاصيل المنتج', this.getAttribute('data-old'), this.innerText, '${pIden}'); updateField(${p.originalIndex},'name',this.innerText); }">${p.name}</td>
+            <td contenteditable="${!isLocked}" data-old="${p.qty}" onfocus="this.setAttribute('data-old', this.innerText)" oninput="validateNumberInput(this, false)" onblur="if(this.getAttribute('data-old')!=this.innerText){ addToActivityLog('العدد', this.getAttribute('data-old'), this.innerText, '${pIden}'); updateField(${p.originalIndex},'qty',this.innerText); }">${p.qty}</td>
+            <td contenteditable="${!isLocked}" data-old="${subVal.toFixed(1)}" onfocus="this.setAttribute('data-old', this.innerText)" oninput="validateNumberInput(this, true)" onblur="if(this.getAttribute('data-old')!=this.innerText){ addToActivityLog('الاشتراك', this.getAttribute('data-old'), this.innerText, '${pIden}'); updateField(${p.originalIndex},'sub',this.innerText); }">${formatNumberWithOneDecimal(subVal)}</td>
+            <td style="color:var(--header-green);font-weight:800;">${formatNumberWithOneDecimal(p.qty * subVal)}</td>
+            ${dynamic}
+            <td class="not-locked"><select class="status-select ${sClass}" data-old="${p.status}" onfocus="this.setAttribute('data-old', this.value)" onchange="changeStatus(${p.originalIndex},this.value)">
+                ${statusOptions.map(s=>`<option value="${s}" ${p.status===s?'selected':''}>${s}</option>`).join('')}</select></td>
+            <td style="font-size:10px">${p.date}</td>
+            <td contenteditable="${!isLocked}" data-old="${rNote}" onfocus="this.setAttribute('data-old', this.innerText)" onblur="if(this.getAttribute('data-old')!=this.innerText){ addToActivityLog('سجل المتابعة', this.getAttribute('data-old'), this.innerText, '${pIden}'); updateField(${p.originalIndex},'rowNote',this.innerText); }">${rNote}</td>
+            </tr>`;
+    });
+    
+    // إدراج صف وهمي شفاف يمتص أي مساحة إضافية ليجبر الشريط الأسود على الالتصاق أسفل الجدول دائماً
+    tbody.innerHTML += `<tr style="height: 100%;"><td colspan="12" style="border: none; background: transparent; pointer-events: none;"></td></tr>`;
+
+    calculateTotals();
+    updateStatsBox();
+}
+
+function updateTableHeaders(type) {
+    const header = document.getElementById('dynamicHeader');
+    let dynamic = (type === "جوال" || type === "بيانات") ? `<th>رقم السريال</th><th>رقم الخدمة</th><th>هوية المستخدم</th>` : `<th>رقم الكبينة</th><th>الإحداثيات</th><th>المدينة</th>`;
+    header.innerHTML = `<th style="width: 30px;"><input type="checkbox" id="checkAllBox" onclick="toggleAll(this)"></th><th style="width:100px;">نوع المنتج</th><th>تفاصيل المنتج</th><th style="width:50px;">العدد</th><th style="width:80px;">الاشتراك</th><th style="width:80px;">الإجمالي</th>${dynamic}<th style="width:110px;">الحالة <select id="colStatusFilter" class="status-header-filter" onchange="triggerStatusColumnFilter(this.value)"><option value="all" ${currentStatusFilterValue==='all'?'selected':''}>الكل</option>${statusOptions.map(opt=>`<option value="${opt}" ${currentStatusFilterValue===opt?'selected':''}>${opt}</option>`).join('')}</select></th><th style="width:80px;">تاريخ الحالة</th><th>سجل المتابعة</th>`;
+}
+
+function triggerStatusColumnFilter(val) { currentStatusFilterValue = val; applyFilters(); }
+
+function updateStatsBox() {
+    const db = JSON.parse(localStorage.getItem('asgate_products_db') || '{}')[currentOrderId] || [];
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    let totalOkAmount = 0, totalWaitAmount = 0, monthOkAmount = 0, monthWaitAmount = 0;
+    db.forEach(p => {
+        const productTotal = (parseInt(p.qty) || 0) * (parseFloat(p.sub) || 0);
+        if (p.status === "مكتمل") totalOkAmount += productTotal;
+        if (p.status === "معلق") totalWaitAmount += productTotal;
+        const parts = (p.date || "").split('/');
+        if (parts.length === 3 && parseInt(parts[1]) === currentMonth && parseInt(parts[2]) === currentYear) {
+            if (p.status === "مكتمل") monthOkAmount += productTotal;
+            if (p.status === "معلق") monthWaitAmount += productTotal;
         }
     });
+    document.getElementById('stat_total_ok').innerText = formatNumberWithOneDecimal(totalOkAmount);
+    document.getElementById('stat_total_wait').innerText = formatNumberWithOneDecimal(totalWaitAmount);
+    document.getElementById('stat_month_ok').innerText = formatNumberWithOneDecimal(monthOkAmount);
+    document.getElementById('stat_month_wait').innerText = formatNumberWithOneDecimal(monthWaitAmount);
+}
+
+function updateField(idx, f, v) {
+    let db = JSON.parse(localStorage.getItem('asgate_products_db') || '{}');
+    let item = db[currentOrderId][idx];
+    item[f] = v.trim(); 
+    item.updatedAt = Date.now(); 
+    localStorage.setItem('asgate_products_db', JSON.stringify(db));
+    if(['qty','sub'].includes(f)) syncSumsToSales();
+    
+    calculateTotals();
+    updateStatsBox();
+}
+
+function changeStatus(idx, s) {
+    let db = JSON.parse(localStorage.getItem('asgate_products_db') || '{}');
+    let item = db[currentOrderId][idx];
+    const oldS = item.status;
+    
+    const pIden = item.name || 'بدون تفاصيل';
+    addToActivityLog('الحالة', oldS, s, pIden);
+    item.status = s; 
+    item.updatedAt = Date.now(); 
+    item.date = new Date().toLocaleDateString('en-GB');
+    localStorage.setItem('asgate_products_db', JSON.stringify(db));
+    syncSumsToSales(); 
+    
+    renderProducts(); 
+}
+
+function deleteSelected() {
+    const chks = document.querySelectorAll('.row-checkbox:checked');
+    if(chks.length===0) return;
+    const validIdxs = Array.from(chks).filter(c => c.dataset.locked === "false").map(c => parseInt(c.dataset.index));
+    if (validIdxs.length === 0) { alert("لا يمكن حذف الصفوف المغلقة"); return; }
+    if(!confirm(`حذف (${validIdxs.length}) منتجات؟`)) return;
+    let db = JSON.parse(localStorage.getItem('asgate_products_db') || '{}');
+    
+    validIdxs.forEach(originalIdx => {
+        const item = db[currentOrderId][originalIdx];
+        const pIden = item.name || 'بدون تفاصيل';
+        addToActivityLog('زر إجراء', '', `حذف المنتج`, pIden);
+    });
+
+    db[currentOrderId] = db[currentOrderId].filter((_, i) => !validIdxs.includes(i));
+    localStorage.setItem('asgate_products_db', JSON.stringify(db));
+    syncSumsToSales(); renderProducts();
+}
+
+function syncSumsToSales() {
+    const items = JSON.parse(localStorage.getItem('asgate_products_db') || '{}')[currentOrderId] || [];
+    let tot = items.reduce((acc, p) => acc + (p.qty * p.sub), 0);
+    document.getElementById('orderTotalSum').innerText = formatNumberWithOneDecimal(tot) + " ر.س";
+}
+
+function calculateTotals() {
+    const db = JSON.parse(localStorage.getItem('asgate_products_db') || '{}')[currentOrderId] || [];
+    let q=0, s=0, t=0; db.forEach(p=>{ q+=parseInt(p.qty)||0; s+=parseFloat(p.sub)||0; t+=(p.qty*p.sub); });
+    document.getElementById('f_selection').innerText = document.querySelectorAll('.row-checkbox:checked').length;
+    document.getElementById('f_count').innerText = db.length; 
+    document.getElementById('f_qty').innerText = q; 
+    document.getElementById('f_sub').innerText = formatNumberWithOneDecimal(s); 
+    document.getElementById('f_total').innerText = formatNumberWithOneDecimal(t);
+}
+
+function saveProduct() {
+    const type = document.getElementById('p_type').value, name = document.getElementById('p_name').value || "بدون تفاصيل", qty = parseInt(document.getElementById('p_qty').value) || 1, sub = parseFloat(document.getElementById('p_sub').value) || 0;
+    let serial = document.getElementById('p_serial').value || "", isAuto = document.getElementById('auto_serial').checked;
+    
+    let db = JSON.parse(localStorage.getItem('asgate_products_db') || '{}');
+    const orderKey = currentOrderId || "0000";
+    if(!db[orderKey]) db[orderKey] = [];
+    
+    const baseTime = Date.now();
+    
+    if(isAuto && ["جوال", "بيانات"].includes(type) && serial !== "") {
+        for(let i=0; i<qty; i++){ 
+            db[orderKey].push({ id: baseTime + i, type, name, qty:1, sub, serial, status:"جديد", date:new Date().toLocaleDateString('en-GB'), updatedAt: baseTime - i, rowNote: "" });
+            addToActivityLog('إضافة منتج جديد', '', `${type}`, name);
+            serial = serial.replace(/(\d+)(?!.*\d)/, n => (BigInt(n)+1n).toString().padStart(n.length, '0')); 
+        }
+    } else { 
+        const newItem = { id: baseTime, type, name, qty, sub, serial:(["جوال", "بيانات"].includes(type)?serial:""), status:"جديد", date:new Date().toLocaleDateString('en-GB'), updatedAt: baseTime, rowNote: "" };
+        db[orderKey].push(newItem); 
+        addToActivityLog('إضافة منتج جديد', '', `${type}`, name);
+    }
+    localStorage.setItem('asgate_products_db', JSON.stringify(db));
+    syncSumsToSales(); renderProducts(); closeModal();
+}
+
+function applyFilters() {
+    const q = document.getElementById('liveSearch').value.toLowerCase().trim();
+    const db = JSON.parse(localStorage.getItem('asgate_products_db') || '{}')[currentOrderId] || [];
+    
+    const searchFiltered = db.filter(p => {
+        const matchesSearch = 
+            (p.serial || '').toLowerCase().includes(q) || 
+            (p.mobile || '').toLowerCase().includes(q) || 
+            (p.user || '').toLowerCase().includes(q);
+            
+        const matchesColumnStatus = (currentStatusFilterValue === "all" || p.status === currentStatusFilterValue);
+        return matchesSearch && matchesColumnStatus;
+    });
+    renderProducts(searchFiltered);
+}
+
+function toggleAll(s) { document.querySelectorAll('.row-checkbox').forEach(c => c.checked = s.checked); calculateTotals(); }
+
+function openModal() { 
+    document.getElementById('productModal').style.display = 'flex'; 
+    document.getElementById('p_qty').value = "1";
+    document.getElementById('p_sub').value = "";
+    document.getElementById('p_serial').value = "";
+    handleTypeChange(); 
+}
+function closeModal() { document.getElementById('productModal').style.display = 'none'; }
+function handleTypeChange() {
+    const type = document.getElementById('p_type').value;
+    const isMobile = (type === "جوال" || type === "بيانات");
+    document.getElementById('p_serial').disabled = !isMobile;
+    document.getElementById('auto_serial').disabled = !isMobile;
+}
+function exportToExcel() {
+    const db = JSON.parse(localStorage.getItem('asgate_products_db') || '{}')[currentOrderId] || [];
+    const ws = XLSX.utils.json_to_sheet(db);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Details");
+    XLSX.writeFile(wb, `Order_${currentOrderId}.xlsx`);
+}
+
+function renderGlobalNotes(notesText) {
+    const logDiv = document.getElementById('historyLog');
+    if (!notesText) {
+        logDiv.innerHTML = '<div style="color:#94a3b8; text-align:center; padding-top:20px;">لا توجد ملاحظات سابقة لهذا الطلب.</div>';
+        return;
+    }
+    logDiv.innerHTML = notesText.split('\n--------------------\n').filter(e=>e.trim()!=="").map(e => `<div class="activity-item">${e}</div>`).join('');
+    logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+function openGlobalNote() {
+    let orderGlobalNotes = localStorage.getItem(GLOBAL_NOTES_KEY) || '';
+    renderGlobalNotes(orderGlobalNotes);
+    document.getElementById('noteModal').style.display = "flex";
+}
+
+function closeGlobalNote() {
+    document.getElementById('noteModal').style.display = "none";
+    document.getElementById('modalTextArea').value = "";
+}
+
+function saveGlobalNote() {
+    const newText = document.getElementById('modalTextArea').value.trim();
+    if (newText) {
+        let oldNotes = localStorage.getItem(GLOBAL_NOTES_KEY) || "";
+        let newEntry = `${generateStyledHeaderForNotes()}<span class="activity-text-part">${newText}</span>`;
+        let updatedFullNotes = oldNotes === "" ? newEntry : oldNotes + "\n--------------------\n" + newEntry;
+        
+        localStorage.setItem(GLOBAL_NOTES_KEY, updatedFullNotes);
+        renderGlobalNotes(updatedFullNotes);
+        document.getElementById('modalTextArea').value = "";
+    }
+}
+
+function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    let fileName = prompt("أدخل اسم للمرفق لحفظه في السجل:", file.name);
+    if (fileName === null) {
+        event.target.value = ''; 
+        return; 
+    }
+    if (fileName.trim() === "") fileName = file.name;
+
+    let oldNotes = localStorage.getItem(GLOBAL_NOTES_KEY) || "";
+    let newEntry = `${generateStyledHeaderForNotes()}<span class="activity-text-part" style="color:var(--accent-blue);"><i class="fas fa-file-alt"></i> تم إرفاق ملف: ${fileName}</span>`;
+    let updatedFullNotes = oldNotes === "" ? newEntry : oldNotes + "\n--------------------\n" + newEntry;
+    
+    localStorage.setItem(GLOBAL_NOTES_KEY, updatedFullNotes);
+    renderGlobalNotes(updatedFullNotes);
+    
+    event.target.value = ''; 
+}
+
+document.addEventListener('dragstart', function(e) { if (e.target.closest('#mainTable')) e.preventDefault(); });
+document.addEventListener('drop', function(e) { if (e.target.closest('#mainTable')) e.preventDefault(); });
+
+let isSelecting = false;
+let startCell = null;
+
+document.addEventListener('mousedown', function(e) {
+    let td = e.target.closest('td');
+    if (!td || !td.closest('#productsBody') || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+        if (!e.target.closest('#mainTable')) clearSelection();
+        return;
+    }
+    isSelecting = true;
+    startCell = td;
+    clearSelection();
+    td.classList.add('cell-selected');
+});
+
+document.addEventListener('mouseover', function(e) {
+    if (!isSelecting) return;
+    let td = e.target.closest('td');
+    if (!td || !td.closest('#productsBody')) return;
+
+    window.getSelection().removeAllRanges();
+    clearSelection();
+
+    let tbody = td.closest('tbody');
+    let startRowIdx = startCell.parentElement.rowIndex - 1; 
+    let endRowIdx = td.parentElement.rowIndex - 1;
+    let startColIdx = startCell.cellIndex;
+    let endColIdx = td.cellIndex;
+
+    let minRow = Math.min(startRowIdx, endRowIdx);
+    let maxRow = Math.max(startRowIdx, endRowIdx);
+    let minCol = Math.min(startColIdx, endColIdx);
+    let maxCol = Math.max(startColIdx, endColIdx);
+
+    for (let r = minRow; r <= maxRow; r++) {
+        let row = tbody.children[r];
+        if (!row) continue;
+        for (let c = minCol; c <= maxCol; c++) {
+            let cell = row.children[c];
+            if (cell && (cell.getAttribute('contenteditable') === "true" || minCol === maxCol)) {
+                cell.classList.add('cell-selected');
+            }
+        }
+    }
+});
+
+document.addEventListener('mouseup', function() { isSelecting = false; });
+function clearSelection() { document.querySelectorAll('.cell-selected').forEach(el => el.classList.remove('cell-selected')); }
+
+document.addEventListener('copy', function(e) {
+    const selectedCells = document.querySelectorAll('.cell-selected');
+    if (selectedCells.length === 0) return;
+
+    let rowsMap = new Map();
+    selectedCells.forEach(cell => {
+        let rIdx = cell.parentElement.rowIndex;
+        if (!rowsMap.has(rIdx)) rowsMap.set(rIdx, []);
+        rowsMap.get(rIdx).push(cell);
+    });
+
+    let textRows = [];
+    let sortedRowKeys = Array.from(rowsMap.keys()).sort((a, b) => a - b);
+    
+    sortedRowKeys.forEach(rIdx => {
+        let cells = rowsMap.get(rIdx).sort((a, b) => a.cellIndex - b.cellIndex);
+        let rowText = cells.map(c => c.innerText.trim()).join('\t');
+        textRows.push(rowText);
+    });
+
+    e.clipboardData.setData('text/plain', textRows.join('\n'));
+    e.preventDefault();
+});
+
+document.getElementById('mainTable').addEventListener('paste', function(e) {
+    let targetTd = e.target.closest('td[contenteditable="true"]');
+    if (!targetTd) return;
+
+    e.preventDefault(); 
+    let clipboardData = e.clipboardData || window.clipboardData;
+    let pasteData = clipboardData.getData('text');
+    if (!pasteData) return;
+
+    let rowsData = pasteData.replace(/\r/g, '').split('\n');
+    if (rowsData[rowsData.length - 1] === '') rowsData.pop();
+
+    let startRowTr = targetTd.closest('tr');
+    let tbody = startRowTr.parentElement;
+    let startRowIndex = Array.from(tbody.children).indexOf(startRowTr);
+    let startColIndex = targetTd.cellIndex;
+
+    let pasteRowIdx = 0;
+    let tableRowIdx = startRowIndex;
+
+    while (pasteRowIdx < rowsData.length && tableRowIdx < tbody.children.length) {
+        let rowTr = tbody.children[tableRowIdx];
+        let cellTd = rowTr.children[startColIndex];
+        
+        if (!cellTd || cellTd.getAttribute('contenteditable') !== "true") {
+            tableRowIdx++;
+            continue;
+        }
+
+        let colsData = rowsData[pasteRowIdx].split('\t');
+        for (let j = 0; j < colsData.length; j++) {
+            let colTargetTd = rowTr.children[startColIndex + j];
+            
+            if (colTargetTd && colTargetTd.getAttribute('contenteditable') === "true") {
+                let oldVal = colTargetTd.innerText;
+                let newVal = colsData[j].trim();
+                
+                if (oldVal !== newVal) {
+                    colTargetTd.setAttribute('data-old', oldVal);
+                    colTargetTd.innerText = newVal;
+                    colTargetTd.dispatchEvent(new Event('input', { bubbles: true }));
+                    colTargetTd.dispatchEvent(new Event('blur', { bubbles: true })); 
+                }
+            }
+        }
+        
+        pasteRowIdx++;
+        tableRowIdx++;
+    }
+    renderProducts();
 });
