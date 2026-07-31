@@ -146,7 +146,7 @@
             font-size: 12px;
         }
 
-        /* كروت الإحصائيات - تم تقليل الارتفاع */
+        /* كروت الإحصائيات */
         .stats-cards { display: flex; gap: 10px; flex-wrap: wrap; }
         .stat-card {
             flex: 1;
@@ -169,7 +169,7 @@
         .label-text { font-size: 11px; margin-bottom: 2px; opacity: 0.95; font-weight: 600; }
         .value-text { font-size: 16px; font-weight: 700; }
 
-        /* الرسومات البيانية العلوية - تم تقليل الحجم */
+        /* الرسومات البيانية العلوية */
         .charts-row {
             display: flex;
             justify-content: space-around;
@@ -196,7 +196,7 @@
         .gauge-value { top: 80%; font-size: 12px; }
         .chart-label { margin-top: 5px; font-size: 12px; font-weight: 700; color: #475569; }
 
-        /* الأرباع السنوية - القسم الجديد */
+        /* الأرباع السنوية */
         .quarters-row {
             display: flex;
             justify-content: space-around;
@@ -216,8 +216,14 @@
             width: 100px;
             margin: 0 auto;
         }
-        .quarter-label {
+        .quarter-pct {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--primary-green);
             margin-top: 8px;
+        }
+        .quarter-label {
+            margin-top: 2px;
             font-size: 12px;
             font-weight: 700;
             color: var(--primary-green);
@@ -284,7 +290,7 @@
                 <div class="filter-card"><label>المندوب</label><select class="filter-input"><option>الكل</option></select></div>
             </div>
             
-            <!-- كروت الإحصائيات (بارتفاع مقلل) -->
+            <!-- كروت الإحصائيات -->
             <div class="stats-cards">
                 <div class="stat-card bg-primary"><div class="label-text">الهدف السنوي</div><div class="value-text">180,000</div></div>
                 <div class="stat-card bg-light-green"><div class="label-text">المبيعات</div><div class="value-text" id="salesValue">0</div></div>
@@ -293,7 +299,7 @@
                 <div class="stat-card bg-gray" style="flex:0.6"><div class="label-text">الفرص</div><div class="value-text" id="oppCount">0</div></div>
             </div>
 
-            <!-- تحليل الأداء الإجمالي (مقلل الارتفاع) -->
+            <!-- تحليل الأداء الإجمالي -->
             <div class="content-box">
                 <h3>📈 تحليل الأداء الإجمالي</h3>
                 <div class="charts-row">
@@ -312,24 +318,28 @@
                 </div>
             </div>
 
-            <!-- تحليل الأرباع السنوية (القسم الجديد) -->
+            <!-- تحليل الأرباع السنوية (محدثة لدائرة كاملة Pie) -->
             <div class="content-box">
                 <h3>🍕 تحليل مبيعات الأرباع السنوية (هدف الربع: 45k)</h3>
                 <div class="quarters-row">
                     <div class="quarter-item">
                         <div class="quarter-chart-container"><canvas id="q1Chart"></canvas></div>
+                        <div class="quarter-pct" id="q1Pct">0%</div>
                         <div class="quarter-label">الربع الأول<br><small>(يناير - مارس)</small></div>
                     </div>
                     <div class="quarter-item">
                         <div class="quarter-chart-container"><canvas id="q2Chart"></canvas></div>
+                        <div class="quarter-pct" id="q2Pct">0%</div>
                         <div class="quarter-label">الربع الثاني<br><small>(أبريل - يونيو)</small></div>
                     </div>
                     <div class="quarter-item">
                         <div class="quarter-chart-container"><canvas id="q3Chart"></canvas></div>
+                        <div class="quarter-pct" id="q3Pct">0%</div>
                         <div class="quarter-label">الربع الثالث<br><small>(يوليو - سبتمبر)</small></div>
                     </div>
                     <div class="quarter-item">
                         <div class="quarter-chart-container"><canvas id="q4Chart"></canvas></div>
+                        <div class="quarter-pct" id="q4Pct">0%</div>
                         <div class="quarter-label">الربع الرابع<br><small>(أكتوبر - ديسمبر)</small></div>
                     </div>
                 </div>
@@ -361,27 +371,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.getElementById('monthsBody');
 
     const monthsNames = ["يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
-
-    // إضافة بلجن لكتابة النسبة المئوية في منتصف دوائر الأرباع
-    const centerTextPlugin = {
-        id: 'centerText',
-        beforeDraw(chart) {
-            if (chart.options.plugins.centerText && chart.options.plugins.centerText.text) {
-                const { ctx, width, height } = chart;
-                ctx.restore();
-                const fontSize = (height / 80).toFixed(2);
-                ctx.font = `bold ${fontSize}em Cairo, sans-serif`;
-                ctx.textBaseline = "middle";
-                ctx.fillStyle = "#0a3a22";
-                const text = chart.options.plugins.centerText.text;
-                const textX = Math.round((width - ctx.measureText(text).width) / 2);
-                const textY = height / 2;
-                ctx.fillText(text, textX, textY);
-                ctx.save();
-            }
-        }
-    };
-    Chart.register(centerTextPlugin);
 
     function getRawData() {
         try {
@@ -458,11 +447,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (currentValue && selectElement.querySelector(`option[value="${currentValue}"]`)) selectElement.value = currentValue;
     }
 
-    // دوال تحديد الألوان الأوتوماتيكية بناءً على الترتيب (أخضر, أصفر, أحمر)
+    // دوال تحديد الألوان الأوتوماتيكية (أخضر للأعلى، أصفر للمتوسط، أحمر للأقل)
     function getQuarterColors(m1, m2, m3) {
         if (m1 === 0 && m2 === 0 && m3 === 0) return ['#e2e8f0', '#e2e8f0', '#e2e8f0'];
         let vals = [{ idx: 0, v: m1 }, { idx: 1, v: m2 }, { idx: 2, v: m3 }];
         vals.sort((a, b) => b.v - a.v); // ترتيب تنازلي
+        
         vals[0].color = '#10b981'; // الأعلى أخضر
         vals[1].color = '#f59e0b'; // الأوسط أصفر
         vals[2].color = '#ef4444'; // الأقل أحمر
@@ -474,18 +464,23 @@ document.addEventListener('DOMContentLoaded', function() {
         return result;
     }
 
-    function updateQuarterChart(chart, m1, m2, m3) {
+    function updateQuarterChart(chart, pctElementId, m1, m2, m3) {
         if(!chart) return;
         let colors = getQuarterColors(m1, m2, m3);
         let achieved = m1 + m2 + m3;
         let remaining = Math.max(0, targetQuarterly - achieved);
         
+        // تحديث الداتا والألوان (الرمادي يمثل المتبقي من الهدف)
         chart.data.datasets[0].data = [m1, m2, m3, remaining];
         chart.data.datasets[0].backgroundColor = [...colors, '#f1f5f9'];
-        
-        let pct = Math.round((achieved / targetQuarterly) * 100);
-        chart.options.plugins.centerText = { text: pct + '%' };
         chart.update();
+
+        // تحديث النسبة المئوية أسفل الدائرة
+        let pct = Math.round((achieved / targetQuarterly) * 100);
+        const pctEl = document.getElementById(pctElementId);
+        if(pctEl) {
+            pctEl.innerText = pct + '%';
+        }
     }
 
     function updateDashboard() {
@@ -516,7 +511,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const filteredVisits = data.visits.filter(filterCallback);
 
         let totalSales = 0, totalPending = 0;
-        let monthlySalesArr = Array(12).fill(0); // مصفوفة لجمع المبيعات لكل شهر
+        let monthlySalesArr = Array(12).fill(0);
 
         filteredSales.forEach(sale => {
             totalSales += sale.completedSum;
@@ -542,10 +537,10 @@ document.addEventListener('DOMContentLoaded', function() {
         updateChartsLogic(totalSales, totalPending, filteredSales);
         
         // تحديث رسومات الأرباع السنوية
-        updateQuarterChart(q1Chart, monthlySalesArr[0], monthlySalesArr[1], monthlySalesArr[2]);
-        updateQuarterChart(q2Chart, monthlySalesArr[3], monthlySalesArr[4], monthlySalesArr[5]);
-        updateQuarterChart(q3Chart, monthlySalesArr[6], monthlySalesArr[7], monthlySalesArr[8]);
-        updateQuarterChart(q4Chart, monthlySalesArr[9], monthlySalesArr[10], monthlySalesArr[11]);
+        updateQuarterChart(q1Chart, 'q1Pct', monthlySalesArr[0], monthlySalesArr[1], monthlySalesArr[2]);
+        updateQuarterChart(q2Chart, 'q2Pct', monthlySalesArr[3], monthlySalesArr[4], monthlySalesArr[5]);
+        updateQuarterChart(q3Chart, 'q3Pct', monthlySalesArr[6], monthlySalesArr[7], monthlySalesArr[8]);
+        updateQuarterChart(q4Chart, 'q4Pct', monthlySalesArr[9], monthlySalesArr[10], monthlySalesArr[11]);
     }
 
     function updateYearlyTable(sales, opps, visits) {
@@ -599,9 +594,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const gaugeEl = document.getElementById('gaugeChart');
         if (gaugeEl) gaugeChart = new Chart(gaugeEl.getContext('2d'), { type: 'doughnut', plugins: [gaugeNeedlePlugin], data: { datasets: [{ data: [100], backgroundColor: function(context) { const chart = context.chart; const {ctx, chartArea} = chart; if (!chartArea) return null; const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0); gradient.addColorStop(0, '#ef4444'); gradient.addColorStop(0.5, '#fbbf24'); gradient.addColorStop(1, '#10b981'); return gradient; }, borderWidth: 0 }] }, options: { rotation: 270, circumference: 180, cutout: '78%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false }, gaugeNeedle: { percent: 0 } } } });
 
-        // تهيئة دوائر الأرباع السنوية 
+        // تهيئة دوائر الأرباع السنوية لتكون Pie (بدون فراغ في المنتصف)
         const quarterOptions = {
-            cutout: '72%',
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
@@ -612,10 +606,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const qInitialData = { datasets: [{ data: [0, 0, 0, 100], backgroundColor: ['#e2e8f0', '#e2e8f0', '#e2e8f0', '#f1f5f9'], borderWidth: 2, borderColor: '#ffffff' }] };
         
-        q1Chart = new Chart(document.getElementById('q1Chart'), { type: 'doughnut', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
-        q2Chart = new Chart(document.getElementById('q2Chart'), { type: 'doughnut', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
-        q3Chart = new Chart(document.getElementById('q3Chart'), { type: 'doughnut', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
-        q4Chart = new Chart(document.getElementById('q4Chart'), { type: 'doughnut', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
+        q1Chart = new Chart(document.getElementById('q1Chart'), { type: 'pie', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
+        q2Chart = new Chart(document.getElementById('q2Chart'), { type: 'pie', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
+        q3Chart = new Chart(document.getElementById('q3Chart'), { type: 'pie', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
+        q4Chart = new Chart(document.getElementById('q4Chart'), { type: 'pie', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
 
         const staffEl = document.getElementById('staffChart');
         if (staffEl) staffChart = new Chart(staffEl.getContext('2d'), { type: 'bar', data: { labels: Array.from({length: 30}, (_, i) => `موظف ${i + 1}`), datasets: [ { label: 'مكتمل', data: Array.from({length: 30}, () => 0), backgroundColor: '#10b981', barPercentage: 0.85, categoryPercentage: 0.6 }, { label: 'معلق', data: Array.from({length: 30}, () => 0), backgroundColor: '#f59e0b', barPercentage: 0.85, categoryPercentage: 0.6 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { callbacks: { label: function(context) { let label = context.dataset.label || ''; if (label) label += ': '; if (context.parsed.y !== undefined) { label += Number(context.parsed.y).toLocaleString('en-US') + ' ريال'; } return label; } } } }, scales: { x: { grid: { display: false }, ticks: { font: { family: 'Cairo', size: 10 }, maxRotation: 45, minRotation: 45 } } } } });
