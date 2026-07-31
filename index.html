@@ -4,10 +4,232 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>لوحة القيادة - مبيعات</title>
-    <!-- ربط ملف التنسيقات -->
-    <link rel="stylesheet" href="main.css">
-    <!-- مكتبة Chart.js لتشغيل الرسومات البيانية -->
+    <!-- تضمين خط Cairo لتصميم أكثر احترافية -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* إعدادات المتغيرات والألوان الأساسية */
+        :root {
+            --primary-green: #0a3a22; /* أخضر داكن */
+            --light-green: #10b981;   /* أخضر فاتح */
+            --bg-light: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-dark: #334155;
+            --border-color: #e2e8f0;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        /* شريط التنقل */
+        .navbar {
+            background-color: var(--primary-green);
+            padding: 8px 25px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+        .nav-links { display: flex; gap: 10px; }
+        .navbar a {
+            color: #e2e8f0;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 6px 14px;
+            border-radius: 5px;
+            transition: all 0.2s ease;
+        }
+        .navbar a:hover, .navbar a.active {
+            background-color: var(--light-green);
+            color: #ffffff;
+        }
+
+        /* شريط الموظف */
+        .employee-info-bar {
+            background-color: var(--card-bg);
+            padding: 8px 30px;
+            border-bottom: 2px solid var(--light-green);
+            display: flex;
+            justify-content: flex-start;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        }
+        .info-content { display: flex; gap: 40px; }
+        .info-item { font-size: 12px; color: #64748b; }
+        .info-item span { font-weight: 700; color: var(--primary-green); font-size: 13px; }
+
+        /* الحاوية الرئيسية */
+        .container {
+            padding: 15px 25px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .dashboard-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .right-section { flex: 1; min-width: 350px; }
+        .left-section {
+            flex: 2;
+            min-width: 450px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* الصناديق والمحتوى */
+        .content-box {
+            background-color: var(--card-bg);
+            padding: 12px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+        }
+        h3 {
+            margin-top: 0;
+            color: var(--primary-green);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            font-size: 14px;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        /* الجدول */
+        .yearly-table { width: 100%; border-collapse: collapse; text-align: center; }
+        .yearly-table th {
+            background-color: var(--primary-green);
+            color: #ffffff;
+            padding: 8px;
+            font-size: 12px;
+            border: 1px solid var(--primary-green);
+        }
+        .yearly-table td {
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .yearly-table tr:nth-child(even) { background-color: #f8fafc; }
+        .thick-border { border-left: 2px solid #cbd5e1 !important; border-right: 2px solid #cbd5e1 !important; }
+
+        /* الفلاتر */
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+        }
+        .filter-card {
+            background-color: #f8fafc;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+        .filter-card label {
+            display: block;
+            font-size: 11px;
+            color: #64748b;
+            margin-bottom: 4px;
+            font-weight: 700;
+        }
+        .filter-input {
+            width: 100%;
+            padding: 4px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            outline: none;
+            font-family: inherit;
+            font-size: 12px;
+        }
+
+        /* كروت الإحصائيات - تم تقليل الارتفاع */
+        .stats-cards { display: flex; gap: 10px; flex-wrap: wrap; }
+        .stat-card {
+            flex: 1;
+            padding: 8px 5px; 
+            border-radius: 6px;
+            color: white;
+            text-align: center;
+            min-width: 80px;
+            min-height: 50px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .bg-primary { background-color: var(--primary-green); }
+        .bg-light-green { background-color: var(--light-green); }
+        .bg-warning { background-color: #f59e0b; }
+        .bg-gray { background-color: #475569; }
+
+        .label-text { font-size: 11px; margin-bottom: 2px; opacity: 0.95; font-weight: 600; }
+        .value-text { font-size: 16px; font-weight: 700; }
+
+        /* الرسومات البيانية العلوية - تم تقليل الحجم */
+        .charts-row {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .chart-item-wrapper { text-align: center; }
+        .chart-container-reduced, .gauge-container-reduced {
+            position: relative;
+            height: 90px;
+            width: 90px;
+            margin: 0 auto;
+        }
+        .chart-percentage, .gauge-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--primary-green);
+        }
+        .gauge-value { top: 80%; font-size: 12px; }
+        .chart-label { margin-top: 5px; font-size: 12px; font-weight: 700; color: #475569; }
+
+        /* الأرباع السنوية - القسم الجديد */
+        .quarters-row {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding-top: 5px;
+        }
+        .quarter-item {
+            text-align: center;
+            flex: 1;
+            min-width: 90px;
+        }
+        .quarter-chart-container {
+            position: relative;
+            height: 100px;
+            width: 100px;
+            margin: 0 auto;
+        }
+        .quarter-label {
+            margin-top: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--primary-green);
+            line-height: 1.3;
+        }
+        .quarter-label small {
+            font-size: 10px;
+            color: #64748b;
+            font-weight: 600;
+        }
+
+    </style>
 </head>
 <body>
 
@@ -33,7 +255,7 @@
     <div class="dashboard-grid">
         <!-- القسم الأيمن (الجدول) -->
         <div class="right-section">
-            <div class="content-box">
+            <div class="content-box" style="height: 100%;">
                 <h3>📅 سجل الأهداف والزيارات والفرص</h3>
                 <table class="yearly-table">
                     <thead>
@@ -51,73 +273,75 @@
             </div>
         </div>
 
-        <!-- القسم الأيسر (الفلاتر، الكروت، والرسومات) -->
+        <!-- القسم الأيسر -->
         <div class="left-section">
+            <!-- الفلاتر -->
             <div class="filters-grid">
-                <div class="filter-card">
-                    <label>السنة</label>
-                    <select class="filter-input"><option>2026</option><option>الكل</option></select>
-                </div>
-                <div class="filter-card">
-                    <label>الشهر</label>
-                    <select class="filter-input"><option>الكل</option></select>
-                </div>
-                <div class="filter-card">
-                    <label>المنطقة</label>
-                    <select class="filter-input"><option>الكل</option></select>
-                </div>
-                <div class="filter-card">
-                    <label>المشرف</label>
-                    <select class="filter-input"><option>الكل</option></select>
-                </div>
-                <div class="filter-card">
-                    <label>المندوب</label>
-                    <select class="filter-input"><option>الكل</option></select>
-                </div>
+                <div class="filter-card"><label>السنة</label><select class="filter-input"><option>2026</option><option>الكل</option></select></div>
+                <div class="filter-card"><label>الشهر</label><select class="filter-input"><option>الكل</option></select></div>
+                <div class="filter-card"><label>المنطقة</label><select class="filter-input"><option>الكل</option></select></div>
+                <div class="filter-card"><label>المشرف</label><select class="filter-input"><option>الكل</option></select></div>
+                <div class="filter-card"><label>المندوب</label><select class="filter-input"><option>الكل</option></select></div>
             </div>
             
+            <!-- كروت الإحصائيات (بارتفاع مقلل) -->
             <div class="stats-cards">
                 <div class="stat-card bg-primary"><div class="label-text">الهدف السنوي</div><div class="value-text">180,000</div></div>
-                <!-- تعديل المربع هنا إلى الأخضر الفاتح وإزالة الاستايلات المدمجة -->
                 <div class="stat-card bg-light-green"><div class="label-text">المبيعات</div><div class="value-text" id="salesValue">0</div></div>
                 <div class="stat-card bg-warning"><div class="label-text">المعلق</div><div class="value-text">0</div></div>
                 <div class="stat-card bg-gray" style="flex:0.6"><div class="label-text">الزيارات</div><div class="value-text" id="visitCount">0</div></div>
                 <div class="stat-card bg-gray" style="flex:0.6"><div class="label-text">الفرص</div><div class="value-text" id="oppCount">0</div></div>
             </div>
 
+            <!-- تحليل الأداء الإجمالي (مقلل الارتفاع) -->
             <div class="content-box">
                 <h3>📈 تحليل الأداء الإجمالي</h3>
                 <div class="charts-row">
                     <div class="chart-item-wrapper">
-                        <div class="chart-container-reduced">
-                            <canvas id="achievedChart"></canvas>
-                            <div class="chart-percentage">0%</div>
-                        </div>
+                        <div class="chart-container-reduced"><canvas id="achievedChart"></canvas><div class="chart-percentage">0%</div></div>
                         <div class="chart-label">مكتمل</div>
                     </div>
                     <div class="chart-item-wrapper" style="flex: 0.6;">
-                        <div class="gauge-container-reduced">
-                            <canvas id="gaugeChart"></canvas>
-                            <div class="gauge-value">0%</div>
-                        </div>
-                        <div class="chart-label" style="margin-top: 15px;">مؤشر الإنجاز</div>
+                        <div class="gauge-container-reduced"><canvas id="gaugeChart"></canvas><div class="gauge-value">0%</div></div>
+                        <div class="chart-label" style="margin-top: 10px;">مؤشر الإنجاز</div>
                     </div>
                     <div class="chart-item-wrapper">
-                        <div class="chart-container-reduced">
-                            <canvas id="pendingChart"></canvas>
-                            <div class="chart-percentage">0%</div>
-                        </div>
+                        <div class="chart-container-reduced"><canvas id="pendingChart"></canvas><div class="chart-percentage">0%</div></div>
                         <div class="chart-label">المعلق</div>
                     </div>
                 </div>
             </div>
+
+            <!-- تحليل الأرباع السنوية (القسم الجديد) -->
+            <div class="content-box">
+                <h3>🍕 تحليل مبيعات الأرباع السنوية (هدف الربع: 45k)</h3>
+                <div class="quarters-row">
+                    <div class="quarter-item">
+                        <div class="quarter-chart-container"><canvas id="q1Chart"></canvas></div>
+                        <div class="quarter-label">الربع الأول<br><small>(يناير - مارس)</small></div>
+                    </div>
+                    <div class="quarter-item">
+                        <div class="quarter-chart-container"><canvas id="q2Chart"></canvas></div>
+                        <div class="quarter-label">الربع الثاني<br><small>(أبريل - يونيو)</small></div>
+                    </div>
+                    <div class="quarter-item">
+                        <div class="quarter-chart-container"><canvas id="q3Chart"></canvas></div>
+                        <div class="quarter-label">الربع الثالث<br><small>(يوليو - سبتمبر)</small></div>
+                    </div>
+                    <div class="quarter-item">
+                        <div class="quarter-chart-container"><canvas id="q4Chart"></canvas></div>
+                        <div class="quarter-label">الربع الرابع<br><small>(أكتوبر - ديسمبر)</small></div>
+                    </div>
+                </div>
+            </div>
+            
         </div>
     </div>
 
     <!-- رسمة فريق المبيعات -->
     <div class="content-box staff-performance-section">
         <h3>👥 أداء فريق المبيعات (30 موظفاً)</h3>
-        <div style="flex-grow: 1; position: relative; height: 250px;">
+        <div style="flex-grow: 1; position: relative; height: 220px;">
             <canvas id="staffChart"></canvas>
         </div>
     </div>
@@ -126,6 +350,10 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     let achievedChart, gaugeChart, pendingChart, staffChart;
+    let q1Chart, q2Chart, q3Chart, q4Chart;
+
+    const targetMonthly = 15000;
+    const targetQuarterly = targetMonthly * 3; // 45,000
 
     const oppCountEl = document.getElementById('oppCount');
     const visitCountEl = document.getElementById('visitCount');
@@ -134,36 +362,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const monthsNames = ["يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
 
+    // إضافة بلجن لكتابة النسبة المئوية في منتصف دوائر الأرباع
+    const centerTextPlugin = {
+        id: 'centerText',
+        beforeDraw(chart) {
+            if (chart.options.plugins.centerText && chart.options.plugins.centerText.text) {
+                const { ctx, width, height } = chart;
+                ctx.restore();
+                const fontSize = (height / 80).toFixed(2);
+                ctx.font = `bold ${fontSize}em Cairo, sans-serif`;
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = "#0a3a22";
+                const text = chart.options.plugins.centerText.text;
+                const textX = Math.round((width - ctx.measureText(text).width) / 2);
+                const textY = height / 2;
+                ctx.fillText(text, textX, textY);
+                ctx.save();
+            }
+        }
+    };
+    Chart.register(centerTextPlugin);
+
     function getRawData() {
         try {
             const visitsData = localStorage.getItem('asgate_visits_final_v31') || localStorage.getItem('asgate_visits_data_v21');
             const oppsData = localStorage.getItem('asgate_opportunities_final_v31') || localStorage.getItem('asgate_opportunities_v21');
-            
             const productsDb = JSON.parse(localStorage.getItem('asgate_products_db') || '{}');
             const salesDb = JSON.parse(localStorage.getItem('asgate_sales_db') || '[]');
             const salesArray = Array.isArray(salesDb) ? salesDb : Object.values(salesDb);
 
             let linkedSales = [];
-            
             salesArray.forEach(order => {
                 const orderProducts = productsDb[order.id] || [];
                 let completedSum = 0;
                 let pendingSum = 0;
-
                 orderProducts.forEach(p => {
                     const lineTotal = (parseFloat(p.qty) || 0) * (parseFloat(String(p.sub).replace(/[^\d.]/g, '')) || 0);
                     if (p.status === "مكتمل") completedSum += lineTotal;
                     if (p.status === "معلق") pendingSum += lineTotal;
                 });
-
                 linkedSales.push({
-                    id: order.id,
-                    date: order.date,
-                    region: order.region || '',
-                    supervisor: order.supervisor || '',
-                    salesman: order.owner || order.salesman || '',
-                    completedSum: completedSum,
-                    pendingSum: pendingSum
+                    id: order.id, date: order.date, region: order.region || '',
+                    supervisor: order.supervisor || '', salesman: order.owner || order.salesman || '',
+                    completedSum: completedSum, pendingSum: pendingSum
                 });
             });
             
@@ -173,7 +414,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 sales: linkedSales 
             };
         } catch (e) {
-            console.error("خطأ في قراءة LocalStorage:", e);
             return { visits: [], opportunities: [], sales: [] };
         }
     }
@@ -181,23 +421,15 @@ document.addEventListener('DOMContentLoaded', function() {
     function populateFilterOptions() {
         const data = getRawData();
         const allData = [...data.sales, ...data.opportunities, ...data.visits];
-        
-        const regions = new Set();
-        const supervisors = new Set();
-        const salesmen = new Set();
-        const years = new Set(["2026"]);
+        const regions = new Set(), supervisors = new Set(), salesmen = new Set(), years = new Set(["2026"]);
 
         allData.forEach(item => {
             if (item.region) regions.add(item.region);
             if (item.supervisor) supervisors.add(item.supervisor);
             if (item.salesman || item.owner) salesmen.add(item.salesman || item.owner);
-            
             let itemDate = item.date || item.visitDate || item.oppDate || item.saleDate;
             if (itemDate) {
-                let year;
-                if (itemDate.includes('/')) year = itemDate.split('/')[2];
-                else if (itemDate.includes('-')) year = itemDate.split('-')[0];
-                
+                let year = itemDate.includes('/') ? itemDate.split('/')[2] : itemDate.split('-')[0];
                 if(year && year.length === 4) years.add(year);
             }
         });
@@ -213,55 +445,69 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!selectElement) return;
         const currentValue = selectElement.value;
         selectElement.innerHTML = '';
-        
         const defaultOpt = document.createElement('option');
-        defaultOpt.text = defaultVal;
-        defaultOpt.value = defaultVal === "الكل" ? "all" : defaultVal;
+        defaultOpt.text = defaultVal; defaultOpt.value = defaultVal === "الكل" ? "all" : defaultVal;
         selectElement.appendChild(defaultOpt);
 
         setOrArray.forEach((val, index) => {
             if(isMonth && val === defaultVal) return;
             const opt = document.createElement('option');
-            opt.text = val;
-            opt.value = isMonth ? (index + 1).toString().padStart(2, '0') : val; 
+            opt.text = val; opt.value = isMonth ? (index + 1).toString().padStart(2, '0') : val; 
             if(val !== defaultVal) selectElement.appendChild(opt);
         });
+        if (currentValue && selectElement.querySelector(`option[value="${currentValue}"]`)) selectElement.value = currentValue;
+    }
 
-        if (currentValue && selectElement.querySelector(`option[value="${currentValue}"]`)) {
-            selectElement.value = currentValue;
-        }
+    // دوال تحديد الألوان الأوتوماتيكية بناءً على الترتيب (أخضر, أصفر, أحمر)
+    function getQuarterColors(m1, m2, m3) {
+        if (m1 === 0 && m2 === 0 && m3 === 0) return ['#e2e8f0', '#e2e8f0', '#e2e8f0'];
+        let vals = [{ idx: 0, v: m1 }, { idx: 1, v: m2 }, { idx: 2, v: m3 }];
+        vals.sort((a, b) => b.v - a.v); // ترتيب تنازلي
+        vals[0].color = '#10b981'; // الأعلى أخضر
+        vals[1].color = '#f59e0b'; // الأوسط أصفر
+        vals[2].color = '#ef4444'; // الأقل أحمر
+        
+        let result = [];
+        result[vals[0].idx] = vals[0].color;
+        result[vals[1].idx] = vals[1].color;
+        result[vals[2].idx] = vals[2].color;
+        return result;
+    }
+
+    function updateQuarterChart(chart, m1, m2, m3) {
+        if(!chart) return;
+        let colors = getQuarterColors(m1, m2, m3);
+        let achieved = m1 + m2 + m3;
+        let remaining = Math.max(0, targetQuarterly - achieved);
+        
+        chart.data.datasets[0].data = [m1, m2, m3, remaining];
+        chart.data.datasets[0].backgroundColor = [...colors, '#f1f5f9'];
+        
+        let pct = Math.round((achieved / targetQuarterly) * 100);
+        chart.options.plugins.centerText = { text: pct + '%' };
+        chart.update();
     }
 
     function updateDashboard() {
         const data = getRawData();
-
-        const selectedYear = document.querySelector('.filters-grid .filter-card:nth-child(1) select')?.value || "2026";
-        const selectedMonth = document.querySelector('.filters-grid .filter-card:nth-child(2) select')?.value || "all";
-        const selectedRegion = document.querySelector('.filters-grid .filter-card:nth-child(3) select')?.value || "all";
-        const selectedSupervisor = document.querySelector('.filters-grid .filter-card:nth-child(4) select')?.value || "all";
-        const selectedSalesman = document.querySelector('.filters-grid .filter-card:nth-child(5) select')?.value || "all";
+        const sYear = document.querySelector('.filters-grid .filter-card:nth-child(1) select')?.value || "2026";
+        const sMonth = document.querySelector('.filters-grid .filter-card:nth-child(2) select')?.value || "all";
+        const sRegion = document.querySelector('.filters-grid .filter-card:nth-child(3) select')?.value || "all";
+        const sSuper = document.querySelector('.filters-grid .filter-card:nth-child(4) select')?.value || "all";
+        const sSales = document.querySelector('.filters-grid .filter-card:nth-child(5) select')?.value || "all";
 
         const filterCallback = (item) => {
-            let itemYear = "";
-            let itemMonth = "";
-            const itemDate = item.date || item.visitDate || item.oppDate || item.saleDate || "";
-            
-            if (itemDate.includes('/')) {
-                itemYear = itemDate.split('/')[2];
-                itemMonth = itemDate.split('/')[1];
-            } else if (itemDate.includes('-')) {
-                itemYear = itemDate.split('-')[0];
-                itemMonth = itemDate.split('-')[1];
-            }
+            let itemYear = "", itemMonth = "";
+            const iDate = item.date || item.visitDate || item.oppDate || item.saleDate || "";
+            if (iDate.includes('/')) { itemYear = iDate.split('/')[2]; itemMonth = iDate.split('/')[1]; } 
+            else if (iDate.includes('-')) { itemYear = iDate.split('-')[0]; itemMonth = iDate.split('-')[1]; }
 
-            if (selectedYear !== "all" && itemYear !== selectedYear) return false;
-            if (selectedMonth !== "all" && itemMonth !== selectedMonth) return false;
-            if (selectedRegion !== "all" && item.region !== selectedRegion) return false;
-            if (selectedSupervisor !== "all" && item.supervisor !== selectedSupervisor) return false;
-            
+            if (sYear !== "all" && itemYear !== sYear) return false;
+            if (sMonth !== "all" && itemMonth !== sMonth) return false;
+            if (sRegion !== "all" && item.region !== sRegion) return false;
+            if (sSuper !== "all" && item.supervisor !== sSuper) return false;
             const ownerName = item.salesman || item.owner;
-            if (selectedSalesman !== "all" && ownerName !== selectedSalesman) return false;
-            
+            if (sSales !== "all" && ownerName !== sSales) return false;
             return true;
         };
 
@@ -269,12 +515,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const filteredOpps = data.opportunities.filter(filterCallback);
         const filteredVisits = data.visits.filter(filterCallback);
 
-        let totalSales = 0;
-        let totalPending = 0;
+        let totalSales = 0, totalPending = 0;
+        let monthlySalesArr = Array(12).fill(0); // مصفوفة لجمع المبيعات لكل شهر
 
         filteredSales.forEach(sale => {
             totalSales += sale.completedSum;
             totalPending += sale.pendingSum;
+            
+            let iDate = sale.date || "";
+            let month = 0;
+            if (iDate.includes('/')) month = parseInt(iDate.split('/')[1]);
+            else if (iDate.includes('-')) month = parseInt(iDate.split('-')[1]);
+            if (month >= 1 && month <= 12) {
+                monthlySalesArr[month - 1] += sale.completedSum;
+            }
         });
 
         if(oppCountEl) oppCountEl.innerText = filteredOpps.length.toLocaleString('en-US'); 
@@ -284,173 +538,90 @@ document.addEventListener('DOMContentLoaded', function() {
         const pendingValueEl = document.querySelector('.bg-warning .value-text');
         if(pendingValueEl) pendingValueEl.innerText = totalPending.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-        updateYearlyTable(filteredSales, filteredOpps, filteredVisits, selectedYear);
-        updateChartsLogic(totalSales, totalPending, filteredVisits.length, filteredOpps.length, filteredSales);
+        updateYearlyTable(filteredSales, filteredOpps, filteredVisits);
+        updateChartsLogic(totalSales, totalPending, filteredSales);
+        
+        // تحديث رسومات الأرباع السنوية
+        updateQuarterChart(q1Chart, monthlySalesArr[0], monthlySalesArr[1], monthlySalesArr[2]);
+        updateQuarterChart(q2Chart, monthlySalesArr[3], monthlySalesArr[4], monthlySalesArr[5]);
+        updateQuarterChart(q3Chart, monthlySalesArr[6], monthlySalesArr[7], monthlySalesArr[8]);
+        updateQuarterChart(q4Chart, monthlySalesArr[9], monthlySalesArr[10], monthlySalesArr[11]);
     }
 
-    function updateYearlyTable(sales, opps, visits, year) {
+    function updateYearlyTable(sales, opps, visits) {
         if (!tbody) return;
         tbody.innerHTML = '';
-
         monthsNames.forEach((monthName, index) => {
             const monthCode = (index + 1).toString().padStart(2, '0');
-            
-            const mSales = sales.filter(s => {
-                const d = s.date || "";
-                const m = d.includes('/') ? d.split('/')[1] : d.split('-')[1];
-                return m === monthCode;
-            });
-            const mOpps = opps.filter(o => {
-                const d = o.date || o.oppDate || o.visitDate || "";
-                const m = d.includes('/') ? d.split('/')[1] : d.split('-')[1];
-                return m === monthCode;
-            });
-            const mVisits = visits.filter(v => {
-                const d = v.date || v.visitDate || v.oppDate || "";
-                const m = d.includes('/') ? d.split('/')[1] : d.split('-')[1];
-                return m === monthCode;
-            });
+            const mSales = sales.filter(s => { const m = (s.date||"").includes('/') ? s.date.split('/')[1] : s.date.split('-')[1]; return m === monthCode; });
+            const mOpps = opps.filter(o => { const d = o.date||o.oppDate||o.visitDate||""; const m = d.includes('/') ? d.split('/')[1] : d.split('-')[1]; return m === monthCode; });
+            const mVisits = visits.filter(v => { const d = v.date||v.visitDate||v.oppDate||""; const m = d.includes('/') ? d.split('/')[1] : d.split('-')[1]; return m === monthCode; });
 
-            let mCompleted = 0;
-            let mPending = 0;
-            let mVisitsCount = mVisits.length;  
-            let mOppsCount = mOpps.length;      
-
-            mSales.forEach(s => {
-                mCompleted += s.completedSum;
-                mPending += s.pendingSum;
-            });
+            let mCompleted = 0, mPending = 0;
+            mSales.forEach(s => { mCompleted += s.completedSum; mPending += s.pendingSum; });
 
             const row = tbody.insertRow();
-            // إزالة الألوان والخلفيات من الخلايا لتتناسب مع التصميم الموحد
             row.innerHTML = `
                 <td>${monthName}</td>
                 <td>15k</td>
                 <td>${mCompleted > 0 ? (mCompleted/1000).toFixed(1) + 'k' : '-'}</td>
                 <td class="thick-border">${mPending > 0 ? (mPending/1000).toFixed(1) + 'k' : '-'}</td>
-                <td>${mVisitsCount > 0 ? mVisitsCount : '-'}</td>
-                <td>${mOppsCount > 0 ? mOppsCount : '-'}</td>
+                <td>${mVisits.length > 0 ? mVisits.length : '-'}</td>
+                <td>${mOpps.length > 0 ? mOpps.length : '-'}</td>
             `;
         });
     }
 
     function initCharts() {
         const achievedEl = document.getElementById('achievedChart');
-        if (achievedEl) {
-            achievedChart = new Chart(achievedEl, {
-                type: 'doughnut',
-                data: { datasets: [{ data: [0, 100], backgroundColor: ['#10b981', '#f1f5f9'], borderWidth: 0, borderRadius: 10 }] }, // استخدم الأخضر الفاتح للمكتمل
-                options: { cutout: '82%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-            });
-        }
+        if (achievedEl) achievedChart = new Chart(achievedEl, { type: 'doughnut', data: { datasets: [{ data: [0, 100], backgroundColor: ['#10b981', '#f1f5f9'], borderWidth: 0, borderRadius: 10 }] }, options: { cutout: '82%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+
+        const pendingEl = document.getElementById('pendingChart');
+        if (pendingEl) pendingChart = new Chart(pendingEl, { type: 'doughnut', data: { datasets: [{ data: [0, 100], backgroundColor: ['#f59e0b', '#f1f5f9'], borderWidth: 0, borderRadius: 10 }] }, options: { cutout: '82%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
 
         const gaugeNeedlePlugin = {
             id: 'gaugeNeedle',
             afterDatasetDraw(chart, args, options) {
-                const { ctx, chartArea: { top, bottom, left, right, width, height } } = chart;
+                const { ctx, chartArea: { width, height } } = chart;
                 ctx.save();
-                
-                let percent = options.percent || 0;
-                if(percent > 100) percent = 100;
-                
+                let percent = options.percent || 0; if(percent > 100) percent = 100;
                 const angle = Math.PI + (Math.PI * (percent / 100));
-                
                 const meta = chart.getDatasetMeta(0);
                 if (!meta.data.length) return;
-                const cx = meta.data[0].x;
-                const cy = meta.data[0].y;
-                
-                const needleLength = width / 2.3;
-                
-                ctx.translate(cx, cy);
-                ctx.rotate(angle);
-                
-                ctx.beginPath();
-                ctx.moveTo(0, -3.5);
-                ctx.lineTo(needleLength, 0);
-                ctx.lineTo(0, 3.5);
-                ctx.fillStyle = '#0a3a22'; 
-                ctx.fill();
-                
-                ctx.beginPath();
-                ctx.arc(0, 0, 7, 0, Math.PI * 2);
-                ctx.fillStyle = '#10b981'; // تم تغيير النقطة المركزية إلى الأخضر الفاتح بدلاً من الذهبي
-                ctx.fill();
-                ctx.lineWidth = 1.5;
-                ctx.strokeStyle = '#0a3a22';
-                ctx.stroke();
-                
+                const cx = meta.data[0].x, cy = meta.data[0].y, needleLength = width / 2.3;
+                ctx.translate(cx, cy); ctx.rotate(angle);
+                ctx.beginPath(); ctx.moveTo(0, -3); ctx.lineTo(needleLength, 0); ctx.lineTo(0, 3); ctx.fillStyle = '#0a3a22'; ctx.fill();
+                ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fillStyle = '#10b981'; ctx.fill();
                 ctx.restore();
             }
         };
 
         const gaugeEl = document.getElementById('gaugeChart');
-        if (gaugeEl) {
-            gaugeChart = new Chart(gaugeEl.getContext('2d'), {
-                type: 'doughnut',
-                plugins: [gaugeNeedlePlugin],
-                data: { 
-                    datasets: [{ 
-                        data: [100], 
-                        backgroundColor: function(context) {
-                            const chart = context.chart;
-                            const {ctx, chartArea} = chart;
-                            if (!chartArea) return null;
-                            const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
-                            gradient.addColorStop(0, '#ef4444'); 
-                            gradient.addColorStop(0.5, '#fbbf24'); 
-                            gradient.addColorStop(1, '#10b981'); // أخضر فاتح بدلاً من العادي ليتماشى مع الثيم
-                            return gradient;
-                        },
-                        borderWidth: 0 
-                    }] 
-                },
-                options: { 
-                    rotation: 270, 
-                    circumference: 180, 
-                    cutout: '80%', 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { 
-                        legend: { display: false },
-                        tooltip: { enabled: false }, 
-                        gaugeNeedle: { percent: 0 } 
-                    } 
-                }
-            });
-        }
+        if (gaugeEl) gaugeChart = new Chart(gaugeEl.getContext('2d'), { type: 'doughnut', plugins: [gaugeNeedlePlugin], data: { datasets: [{ data: [100], backgroundColor: function(context) { const chart = context.chart; const {ctx, chartArea} = chart; if (!chartArea) return null; const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0); gradient.addColorStop(0, '#ef4444'); gradient.addColorStop(0.5, '#fbbf24'); gradient.addColorStop(1, '#10b981'); return gradient; }, borderWidth: 0 }] }, options: { rotation: 270, circumference: 180, cutout: '78%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false }, gaugeNeedle: { percent: 0 } } } });
 
-        const pendingEl = document.getElementById('pendingChart');
-        if (pendingEl) {
-            pendingChart = new Chart(pendingEl, {
-                type: 'doughnut',
-                data: { datasets: [{ data: [0, 100], backgroundColor: ['#f59e0b', '#f1f5f9'], borderWidth: 0, borderRadius: 10 }] },
-                options: { cutout: '82%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-            });
-        }
+        // تهيئة دوائر الأرباع السنوية 
+        const quarterOptions = {
+            cutout: '72%',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: function(ctx) { let labels = ['الشهر الأول', 'الشهر الثاني', 'الشهر الثالث', 'متبقي من الهدف']; return labels[ctx.dataIndex] + ': ' + (ctx.parsed||0).toLocaleString() + ' ريال'; } } }
+            }
+        };
+
+        const qInitialData = { datasets: [{ data: [0, 0, 0, 100], backgroundColor: ['#e2e8f0', '#e2e8f0', '#e2e8f0', '#f1f5f9'], borderWidth: 2, borderColor: '#ffffff' }] };
+        
+        q1Chart = new Chart(document.getElementById('q1Chart'), { type: 'doughnut', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
+        q2Chart = new Chart(document.getElementById('q2Chart'), { type: 'doughnut', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
+        q3Chart = new Chart(document.getElementById('q3Chart'), { type: 'doughnut', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
+        q4Chart = new Chart(document.getElementById('q4Chart'), { type: 'doughnut', data: JSON.parse(JSON.stringify(qInitialData)), options: quarterOptions });
 
         const staffEl = document.getElementById('staffChart');
-        if (staffEl) {
-            staffChart = new Chart(staffEl.getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: Array.from({length: 30}, (_, i) => `موظف ${i + 1}`), 
-                    datasets: [
-                        { label: 'مكتمل', data: Array.from({length: 30}, () => 0), backgroundColor: '#10b981', barPercentage: 0.85, categoryPercentage: 0.6 },
-                        { label: 'معلق', data: Array.from({length: 30}, () => 0), backgroundColor: '#f59e0b', barPercentage: 0.85, categoryPercentage: 0.6 }
-                    ]
-                },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { tooltip: { callbacks: { label: function(context) { let label = context.dataset.label || ''; if (label) label += ': '; if (context.parsed.y !== undefined) { label += Number(context.parsed.y).toLocaleString('en-US') + ' ريال'; } return label; } } } },
-                    scales: { x: { grid: { display: false }, ticks: { font: { family: 'Cairo', size: 10 }, maxRotation: 45, minRotation: 45 } } } 
-                }
-            });
-        }
+        if (staffEl) staffChart = new Chart(staffEl.getContext('2d'), { type: 'bar', data: { labels: Array.from({length: 30}, (_, i) => `موظف ${i + 1}`), datasets: [ { label: 'مكتمل', data: Array.from({length: 30}, () => 0), backgroundColor: '#10b981', barPercentage: 0.85, categoryPercentage: 0.6 }, { label: 'معلق', data: Array.from({length: 30}, () => 0), backgroundColor: '#f59e0b', barPercentage: 0.85, categoryPercentage: 0.6 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { callbacks: { label: function(context) { let label = context.dataset.label || ''; if (label) label += ': '; if (context.parsed.y !== undefined) { label += Number(context.parsed.y).toLocaleString('en-US') + ' ريال'; } return label; } } } }, scales: { x: { grid: { display: false }, ticks: { font: { family: 'Cairo', size: 10 }, maxRotation: 45, minRotation: 45 } } } } });
     }
 
-    function updateChartsLogic(salesTotal, pendingTotal, totalVisits, successVisits, filteredSales = []) {
+    function updateChartsLogic(salesTotal, pendingTotal, filteredSales = []) {
         const grandTotal = salesTotal + pendingTotal || 1; 
         const salesPercent = Math.round((salesTotal / grandTotal) * 100) || 0;
         const pendingPercent = Math.round((pendingTotal / grandTotal) * 100) || 0;
@@ -463,46 +634,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const targetYearly = 180000;
         const gaugePercentRaw = (salesTotal / targetYearly) * 100;
-        
         const gaugeValueText = document.querySelector('.gauge-container-reduced .gauge-value');
         if(gaugeValueText) gaugeValueText.innerText = `${Math.round(gaugePercentRaw)}%`;
 
         if (achievedChart) { achievedChart.data.datasets[0].data = [salesPercent, 100 - salesPercent]; achievedChart.update(); }
         if (pendingChart) { pendingChart.data.datasets[0].data = [pendingPercent, 100 - pendingPercent]; pendingChart.update(); }
-        
-        if (gaugeChart) { 
-            const safePercent = Math.min(gaugePercentRaw, 100); 
-            gaugeChart.options.plugins.gaugeNeedle.percent = safePercent; 
-            gaugeChart.update(); 
-        }
+        if (gaugeChart) { gaugeChart.options.plugins.gaugeNeedle.percent = Math.min(gaugePercentRaw, 100); gaugeChart.update(); }
 
         if (staffChart) {
             const staffAggregation = {};
-
             filteredSales.forEach(sale => {
                 const name = (sale.salesman || sale.owner || "").trim();
                 if (!name) return;
-
-                if (!staffAggregation[name]) {
-                    staffAggregation[name] = { completed: 0, pending: 0 };
-                }
-                
+                if (!staffAggregation[name]) staffAggregation[name] = { completed: 0, pending: 0 };
                 staffAggregation[name].completed += sale.completedSum;
                 staffAggregation[name].pending += sale.pendingSum;
             });
 
             const realStaffNames = Object.keys(staffAggregation);
             const finalLabels = Array.from({length: 30}, (_, i) => realStaffNames[i] || `موظف ${i + 1}`);
-            
-            const salesDataset = Array.from({length: 30}, (_, i) => {
-                const name = realStaffNames[i];
-                return name ? staffAggregation[name].completed : (salesTotal === 0 ? 0 : Math.floor(salesTotal * (Math.random() * 0.15)));
-            });
-
-            const pendingDataset = Array.from({length: 30}, (_, i) => {
-                const name = realStaffNames[i];
-                return name ? staffAggregation[name].pending : (pendingTotal === 0 ? 0 : Math.floor(pendingTotal * (Math.random() * 0.10)));
-            });
+            const salesDataset = Array.from({length: 30}, (_, i) => realStaffNames[i] ? staffAggregation[realStaffNames[i]].completed : (salesTotal === 0 ? 0 : Math.floor(salesTotal * (Math.random() * 0.15))));
+            const pendingDataset = Array.from({length: 30}, (_, i) => realStaffNames[i] ? staffAggregation[realStaffNames[i]].pending : (pendingTotal === 0 ? 0 : Math.floor(pendingTotal * (Math.random() * 0.10))));
 
             staffChart.data.labels = finalLabels;
             staffChart.data.datasets[0].data = salesDataset;
@@ -515,16 +667,8 @@ document.addEventListener('DOMContentLoaded', function() {
     populateFilterOptions();
     updateDashboard();
 
-    document.querySelectorAll('.filters-grid select').forEach(select => {
-        select.addEventListener('change', updateDashboard);
-    });
-
-    window.addEventListener('storage', function(e) {
-        if (e.key && e.key.includes('asgate_')) {
-            populateFilterOptions();
-            updateDashboard();
-        }
-    });
+    document.querySelectorAll('.filters-grid select').forEach(select => select.addEventListener('change', updateDashboard));
+    window.addEventListener('storage', function(e) { if (e.key && e.key.includes('asgate_')) { populateFilterOptions(); updateDashboard(); } });
 });
 </script>
 
