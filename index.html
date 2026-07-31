@@ -29,16 +29,24 @@
         /* شريط التنقل */
         .navbar {
             background-color: var(--primary-green);
-            padding: 8px 25px;
+            height: 35px;
+            padding: 0 25px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
         }
-        .nav-links { display: flex; gap: 10px; }
+        .nav-links { 
+            display: flex; 
+            gap: 10px; 
+            align-items: center;
+        }
         .navbar a {
+            font-family: 'Cairo', sans-serif;
             color: #e2e8f0;
             text-decoration: none;
             font-weight: 600;
-            font-size: 14px;
-            padding: 6px 14px;
+            font-size: 12px;
+            padding: 4px 14px;
             border-radius: 5px;
             transition: all 0.2s ease;
         }
@@ -318,7 +326,7 @@
                 </div>
             </div>
 
-            <!-- تحليل الأرباع السنوية (محدثة لدائرة كاملة Pie) -->
+            <!-- تحليل الأرباع السنوية -->
             <div class="content-box">
                 <h3>🍕 تحليل مبيعات الأرباع السنوية (هدف الربع: 45k)</h3>
                 <div class="quarters-row">
@@ -447,11 +455,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (currentValue && selectElement.querySelector(`option[value="${currentValue}"]`)) selectElement.value = currentValue;
     }
 
-    // دوال تحديد الألوان الأوتوماتيكية (أخضر للأعلى، أصفر للمتوسط، أحمر للأقل)
     function getQuarterColors(m1, m2, m3) {
         if (m1 === 0 && m2 === 0 && m3 === 0) return ['#e2e8f0', '#e2e8f0', '#e2e8f0'];
         let vals = [{ idx: 0, v: m1 }, { idx: 1, v: m2 }, { idx: 2, v: m3 }];
-        vals.sort((a, b) => b.v - a.v); // ترتيب تنازلي
+        vals.sort((a, b) => b.v - a.v); 
         
         vals[0].color = '#10b981'; // الأعلى أخضر
         vals[1].color = '#f59e0b'; // الأوسط أصفر
@@ -470,12 +477,10 @@ document.addEventListener('DOMContentLoaded', function() {
         let achieved = m1 + m2 + m3;
         let remaining = Math.max(0, targetQuarterly - achieved);
         
-        // تحديث الداتا والألوان (الرمادي يمثل المتبقي من الهدف)
         chart.data.datasets[0].data = [m1, m2, m3, remaining];
         chart.data.datasets[0].backgroundColor = [...colors, '#f1f5f9'];
         chart.update();
 
-        // تحديث النسبة المئوية أسفل الدائرة
         let pct = Math.round((achieved / targetQuarterly) * 100);
         const pctEl = document.getElementById(pctElementId);
         if(pctEl) {
@@ -536,7 +541,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateYearlyTable(filteredSales, filteredOpps, filteredVisits);
         updateChartsLogic(totalSales, totalPending, filteredSales);
         
-        // تحديث رسومات الأرباع السنوية
         updateQuarterChart(q1Chart, 'q1Pct', monthlySalesArr[0], monthlySalesArr[1], monthlySalesArr[2]);
         updateQuarterChart(q2Chart, 'q2Pct', monthlySalesArr[3], monthlySalesArr[4], monthlySalesArr[5]);
         updateQuarterChart(q3Chart, 'q3Pct', monthlySalesArr[6], monthlySalesArr[7], monthlySalesArr[8]);
@@ -594,7 +598,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const gaugeEl = document.getElementById('gaugeChart');
         if (gaugeEl) gaugeChart = new Chart(gaugeEl.getContext('2d'), { type: 'doughnut', plugins: [gaugeNeedlePlugin], data: { datasets: [{ data: [100], backgroundColor: function(context) { const chart = context.chart; const {ctx, chartArea} = chart; if (!chartArea) return null; const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0); gradient.addColorStop(0, '#ef4444'); gradient.addColorStop(0.5, '#fbbf24'); gradient.addColorStop(1, '#10b981'); return gradient; }, borderWidth: 0 }] }, options: { rotation: 270, circumference: 180, cutout: '78%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false }, gaugeNeedle: { percent: 0 } } } });
 
-        // تهيئة دوائر الأرباع السنوية لتكون Pie (بدون فراغ في المنتصف)
         const quarterOptions = {
             responsive: true,
             maintainAspectRatio: false,
